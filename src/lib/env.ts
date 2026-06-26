@@ -71,4 +71,8 @@ export const integrations = {
     const e = getEnv();
     return Boolean(e.GMAIL_CLIENT_ID && e.GMAIL_CLIENT_SECRET && e.GMAIL_REFRESH_TOKEN);
   },
+  inngest(): boolean {
+    const e = getEnv();
+    return Boolean(e.INNGEST_EVENT_KEY && e.INNGEST_SIGNING_KEY);
+  },
 };

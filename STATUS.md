@@ -88,3 +88,47 @@ On `/creators`: add a creator, import a CSV, filter the table — results update
 With `MODASH_API_KEY` set: click **Enrich** on a creator (pulls a live Modash report); on
 `/discovery`, **Run discovery** against the competitor defaults, then **Approve** a candidate
 and confirm it appears on `/creators`.
+
+---
+
+## P2 — AI Outreach (Module B) ✅ code complete
+
+### Built
+- **Claude client** (`lib/anthropic.ts`) — Messages API (raw fetch, retry/backoff).
+  `generateOutreach()` writes a 1:1, brand-voice email (subject + body, no fabricated metrics)
+  from creator + campaign + `brand.config` voice; `classifyReply()` labels replies into the
+  `ai_interest_label` set. Sonnet for drafting, Haiku for classification.
+- **Gmail client** (`lib/gmail.ts`) — refresh-token OAuth, send RFC822 (threadId / In-Reply-To
+  threading), list + get recent messages, MIME parse. Access token cached.
+- **Outreach engine** (`lib/outreach.ts`) — campaigns, draft generate / regenerate / edit,
+  **human-approved send** (never auto-sends), reply sync + classification, priority-inbox and
+  draft queries. Idempotent reply ingest (dedupe by `gmail_message_id`); creator status
+  auto-advances prospect → contacted → replied.
+- **Inngest** (`lib/inngest.ts` + `/api/inngest`) — scheduled `sync-gmail-replies` cron (every
+  10 min). Same logic is exposed as a manual **Sync replies now** button, so reply sync works
+  even without Inngest.
+- **/outreach UI** — create campaign, pick creator + campaign, generate draft, edit / regenerate,
+  approve & send (requires creator email + Gmail).
+- **/inbox UI** — threads sorted hottest-first by interest label, latest reply + AI rationale,
+  sync-now, one-click follow-up draft (2nd touch).
+- Nav extended (Outreach, Inbox); `inngest()` integration flag; disabled states when
+  Anthropic / Gmail / Inngest are unset.
+
+### Verified
+- No schema change needed (P0 anticipated it). Full `tsc --noEmit` clean across all 40 source
+  files including Inngest — run locally before push (the P1 lesson: a real build catches what a
+  partial check can't).
+
+### Needs keys to run live
+Generation needs `ANTHROPIC_API_KEY`; send + reply-sync need `GMAIL_*`; scheduled sync needs
+`INNGEST_*`. Everything degrades to disabled states otherwise.
+
+### Manual test (P2)
+With Anthropic + Gmail set: /outreach → New campaign → Generate a draft for a creator that has
+an email → edit if desired → Approve & send. Reply from that inbox, then /inbox → Sync replies
+now → the reply appears, auto-classified, sorted by interest. "Draft follow-up" queues a
+2nd-touch draft back on /outreach.
+
+### Next (P3 — Affiliate engine + attribution)
+`/join` signup → per-creator Shopify discount codes → order sync → per-affiliate revenue. Also:
+relax Vercel Deployment Protection for `/join` + webhooks.
