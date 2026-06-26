@@ -282,16 +282,23 @@ export interface DraftItem {
 }
 
 export async function listDrafts(): Promise<DraftItem[]> {
+  // Driven by unsent outbound messages so it captures BOTH first-touch drafts and
+  // follow-up drafts queued on already-replied threads (whose status isn't 'draft').
+  const draftMsgs = await db
+    .select({ threadId: messages.threadId })
+    .from(messages)
+    .where(and(eq(messages.direction, "outbound"), isNull(messages.sentAt)));
+  const ids = [...new Set(draftMsgs.map((m) => m.threadId))];
+  if (ids.length === 0) return [];
+
   const rows = await db
     .select({ thread: outreachThreads, handle: creators.handle, email: creators.email })
     .from(outreachThreads)
     .innerJoin(creators, eq(outreachThreads.creatorId, creators.id))
-    .where(eq(outreachThreads.status, "draft"))
+    .where(inArray(outreachThreads.id, ids))
     .orderBy(desc(outreachThreads.updatedAt))
     .limit(100);
-  if (rows.length === 0) return [];
 
-  const ids = rows.map((r) => r.thread.id);
   const msgs = await db
     .select()
     .from(messages)
