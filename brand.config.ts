@@ -46,7 +46,10 @@ export const brandConfig = {
    * Team allowlist for single-team auth. Only these emails may sign in.
    * EDIT-ME: add the rest of your team.
    */
-  teamEmails: ["david@un8brands.com"] as string[],
+  teamEmails: [
+    "david@un8brands.com",
+    "David@laurelbathhouse.com",
+  ] as string[],
 
   /**
    * Domain that 1:1 creator outreach is sent from (Gmail send-as / alias).
