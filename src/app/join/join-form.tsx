@@ -11,7 +11,7 @@ export function JoinForm() {
 
   if (state?.ok) {
     return (
-      <div className="rounded-xl border border-border bg-card p-6 text-center">
+      <div className="rounded-cell bg-card bento p-6 text-center">
         <div className="text-sm">{state.message}</div>
         {state.code && (
           <div className="mt-3 inline-block rounded-md bg-secondary px-3 py-1 font-mono text-sm">{state.code}</div>
@@ -21,7 +21,7 @@ export function JoinForm() {
   }
 
   return (
-    <form action={action} className="space-y-3">
+    <form action={action} className="space-y-3 rounded-cell bg-card bento p-6">
       <Input name="handle" placeholder="@yourhandle *" required />
       <select name="platform" className={fieldClass} defaultValue="">
         <option value="">Primary platform…</option>

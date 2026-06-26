@@ -1,23 +1,10 @@
 import { AppNav } from "@/components/app-nav";
-import {
-  Search,
-  Mail,
-  Users,
-  Link2,
-  Image as ImageIcon,
-  BarChart3,
-  ShoppingBag,
-  Sparkles,
-  CheckCircle2,
-  Circle,
-  type LucideIcon,
-} from "lucide-react";
+import { Search, Mail, ShoppingBag, Sparkles, CheckCircle2, Circle } from "lucide-react";
 import { requireTeamMember } from "@/lib/auth";
 import { integrations } from "@/lib/env";
-import { getFunnelCounts, type FunnelCounts } from "@/lib/analytics";
+import { getFunnelCounts } from "@/lib/analytics";
 import { formatUSD } from "@/lib/utils";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { BentoGrid, BentoCell, StatTile } from "@/components/bento";
 
 export const dynamic = "force-dynamic";
 
@@ -34,23 +21,13 @@ function readIntegrations() {
   }
 }
 
-const FUNNEL: { key: keyof FunnelCounts; label: string; icon: LucideIcon; money?: boolean }[] = [
-  { key: "discovered", label: "Discovered", icon: Search },
-  { key: "contacted", label: "Contacted", icon: Mail },
-  { key: "replied", label: "Replied", icon: Users },
-  { key: "active", label: "Active", icon: Sparkles },
-  { key: "posted", label: "Posted", icon: ImageIcon },
-  { key: "orders", label: "Orders", icon: ShoppingBag },
-  { key: "revenueCents", label: "Revenue", icon: BarChart3, money: true },
-];
-
 const ROADMAP = [
-  { id: "P0", label: "Foundation — scaffold, schema, auth, Shopify", state: "current" },
-  { id: "P1", label: "Creator DB — discovery, enrichment, search", state: "next" },
-  { id: "P2", label: "AI Outreach — drafts, send, reply sync, inbox", state: "todo" },
-  { id: "P3", label: "Affiliates — codes + order attribution", state: "todo" },
-  { id: "P4", label: "Content tracking + funnel analytics", state: "todo" },
-  { id: "P5", label: "TikTok Shop + polish + hardening", state: "todo" },
+  { id: "P0", label: "Foundation", done: true },
+  { id: "P1", label: "Creator DB & discovery", done: true },
+  { id: "P2", label: "AI outreach + inbox", done: true },
+  { id: "P3", label: "Affiliates + attribution", done: true },
+  { id: "P4", label: "Content + analytics", done: true },
+  { id: "P5", label: "Polish / production", done: true },
 ];
 
 export default async function DashboardPage() {
@@ -58,109 +35,91 @@ export default async function DashboardPage() {
   const ints = readIntegrations();
   const funnel = await getFunnelCounts().catch(() => null);
 
-  const integrationCards: {
-    key: string;
-    name: string;
-    icon: LucideIcon;
-    on: boolean | undefined;
-    test?: string;
-  }[] = [
-    { key: "shopify", name: "Shopify", icon: ShoppingBag, on: ints?.shopify, test: "/api/shopify/ping" },
+  const integrationCards = [
+    { key: "shopify", name: "Shopify", icon: ShoppingBag, on: ints?.shopify },
     { key: "modash", name: "Modash", icon: Search, on: ints?.modash },
-    { key: "anthropic", name: "Claude (AI)", icon: Sparkles, on: ints?.anthropic },
+    { key: "anthropic", name: "Claude", icon: Sparkles, on: ints?.anthropic },
     { key: "gmail", name: "Gmail", icon: Mail, on: ints?.gmail },
   ];
+  const n = (v: number | undefined): string => (funnel && v != null ? String(v) : "—");
 
   return (
     <div className="min-h-screen">
       <AppNav active="/" email={team.email} />
+      <main className="container space-y-5 py-8">
+        <BentoGrid>
+          {/* Hero — attributed revenue */}
+          <BentoCell span={6} mobile={2} className="flex min-h-[180px] flex-col justify-between">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+              Attributed revenue
+            </div>
+            <div>
+              <div className="text-5xl font-semibold tnum tracking-[-0.03em] text-primary">
+                {funnel ? formatUSD(funnel.revenueCents) : "—"}
+              </div>
+              <div className="mt-2 text-sm text-muted-foreground">
+                {funnel
+                  ? `${funnel.orders} attributed order${funnel.orders === 1 ? "" : "s"}`
+                  : "Connect data to see revenue"}
+              </div>
+            </div>
+          </BentoCell>
+          <StatTile span={3} label="Active" value={n(funnel?.active)} sub="creators" />
+          <StatTile span={3} label="Posted" value={n(funnel?.posted)} sub="have content" />
+          <StatTile span={3} label="Discovered" value={n(funnel?.discovered)} />
+          <StatTile span={3} label="Contacted" value={n(funnel?.contacted)} />
+          <StatTile span={3} label="Replied" value={n(funnel?.replied)} />
+          <StatTile span={3} label="Orders" value={n(funnel?.orders)} />
+        </BentoGrid>
 
-      <main className="container space-y-8 py-8">
-        <section>
-          <h2 className="mb-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            Data sources
-          </h2>
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            {integrationCards.map((c) => (
-              <Card key={c.key}>
-                <CardContent className="flex items-center justify-between p-4">
-                  <div className="flex items-center gap-3">
+        <BentoGrid>
+          {/* Data sources */}
+          <BentoCell span={7} mobile={2}>
+            <div className="mb-4 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+              Data sources
+            </div>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {integrationCards.map((c) => (
+                <div
+                  key={c.key}
+                  className="flex items-center justify-between rounded-ctrl bg-secondary/50 px-3 py-2.5"
+                >
+                  <div className="flex items-center gap-2">
                     <c.icon className="size-4 text-muted-foreground" />
-                    <div>
-                      <div className="text-sm font-medium">{c.name}</div>
-                      {c.test && c.on ? (
-                        <a
-                          href={c.test}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-xs text-muted-foreground underline-offset-2 hover:underline"
-                        >
-                          Test connection →
-                        </a>
-                      ) : (
-                        <div className="text-xs text-muted-foreground">
-                          {c.on == null ? "Status unknown" : c.on ? "Ready" : "Not configured"}
-                        </div>
-                      )}
-                    </div>
+                    <span className="text-sm">{c.name}</span>
                   </div>
-                  <Badge variant={c.on ? "success" : "secondary"}>{c.on ? "Connected" : "Off"}</Badge>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </section>
-
-        <section>
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              Funnel
-            </h2>
-            <span className="text-xs text-muted-foreground">Live counts from your data — no placeholders.</span>
-          </div>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
-            {FUNNEL.map((f) => {
-              const val = funnel ? (f.money ? formatUSD(funnel[f.key]) : String(funnel[f.key])) : "—";
-              return (
-                <Card key={f.key}>
-                  <CardContent className="p-4">
-                    <f.icon className="mb-2 size-4 text-muted-foreground" />
-                    <div className="text-2xl font-semibold tabular-nums">{val}</div>
-                    <div className="text-xs text-muted-foreground">{f.label}</div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        </section>
-
-        <section>
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm">Build roadmap</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {ROADMAP.map((p) => (
-                <div key={p.id} className="flex items-center gap-3 text-sm">
-                  {p.state === "current" ? (
-                    <CheckCircle2 className="size-4 text-success" />
-                  ) : (
-                    <Circle className="size-4 text-muted-foreground" />
-                  )}
-                  <span className="w-8 font-mono text-xs text-muted-foreground">{p.id}</span>
-                  <span className={p.state === "current" ? "font-medium" : "text-muted-foreground"}>
-                    {p.label}
-                  </span>
-                  {p.state === "current" && (
-                    <Badge variant="outline" className="ml-auto">
-                      In progress
-                    </Badge>
-                  )}
+                  <span className={`size-2 rounded-full ${c.on ? "bg-success" : "bg-muted-foreground/40"}`} />
                 </div>
               ))}
-            </CardContent>
-          </Card>
-        </section>
+            </div>
+            <div className="mt-4 text-xs text-muted-foreground">
+              Shopify connection:{" "}
+              <a href="/api/shopify/ping" target="_blank" rel="noreferrer" className="text-primary underline-offset-2 hover:underline">
+                run test →
+              </a>
+            </div>
+          </BentoCell>
+
+          {/* Build roadmap */}
+          <BentoCell span={5} mobile={2}>
+            <div className="mb-4 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+              Build status
+            </div>
+            <div className="space-y-2.5">
+              {ROADMAP.map((p) => (
+                <div key={p.id} className="flex items-center gap-3 text-sm">
+                  {p.done ? (
+                    <CheckCircle2 className="size-4 text-success" />
+                  ) : (
+                    <Circle className="size-4 text-muted-foreground/50" />
+                  )}
+                  <span className="w-7 font-mono text-xs text-muted-foreground">{p.id}</span>
+                  <span className="text-foreground">{p.label}</span>
+                </div>
+              ))}
+            </div>
+          </BentoCell>
+        </BentoGrid>
       </main>
     </div>
   );

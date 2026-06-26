@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 
 export default function NotAuthorizedPage() {
   return (
-    <main className="flex min-h-screen items-center justify-center p-6">
+    <main className="aurora flex min-h-screen items-center justify-center p-6">
       <div className="max-w-md text-center">
         <h1 className="text-lg font-semibold tracking-tight">Not on the team</h1>
         <p className="mt-2 text-sm text-muted-foreground">

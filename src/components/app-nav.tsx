@@ -14,7 +14,7 @@ const LINKS = [
 
 export function AppNav({ active, email }: { active: string; email?: string | null }) {
   return (
-    <header className="sticky top-0 z-10 border-b border-border bg-background/80 backdrop-blur">
+    <header className="frost sticky top-0 z-20 border-b border-border">
       <div className="container flex h-14 items-center justify-between">
         <div className="flex items-center gap-6">
           <span className="text-sm font-semibold tracking-tight">LBH Cliff Notes</span>
@@ -24,7 +24,7 @@ export function AppNav({ active, email }: { active: string; email?: string | nul
                 key={l.href}
                 href={l.href}
                 className={cn(
-                  "rounded-md px-3 py-1.5 text-sm transition-colors",
+                  "rounded-full px-3.5 py-1.5 text-sm transition-colors",
                   active === l.href
                     ? "bg-secondary text-foreground"
                     : "text-muted-foreground hover:text-foreground",

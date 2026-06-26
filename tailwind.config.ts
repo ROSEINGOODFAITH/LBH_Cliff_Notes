@@ -52,6 +52,12 @@ const config: Config = {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+        cell: "24px",
+        panel: "20px",
+        ctrl: "12px",
+      },
+      transitionTimingFunction: {
+        apple: "cubic-bezier(0.22, 1, 0.36, 1)",
       },
       fontFamily: {
         sans: ["var(--font-sans)", "ui-sans-serif", "system-ui", "sans-serif"],
