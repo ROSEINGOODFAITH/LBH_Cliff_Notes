@@ -10,6 +10,7 @@ import {
   Sparkles,
   CheckCircle2,
   Circle,
+  type LucideIcon,
 } from "lucide-react";
 import { requireTeamMember } from "@/lib/auth";
 import { integrations } from "@/lib/env";
@@ -54,12 +55,18 @@ export default async function DashboardPage() {
   const team = await requireTeamMember();
   const ints = readIntegrations();
 
-  const integrationCards = [
+  const integrationCards: {
+    key: string;
+    name: string;
+    icon: LucideIcon;
+    on: boolean | undefined;
+    test?: string;
+  }[] = [
     { key: "shopify", name: "Shopify", icon: ShoppingBag, on: ints?.shopify, test: "/api/shopify/ping" },
     { key: "modash", name: "Modash", icon: Search, on: ints?.modash },
     { key: "anthropic", name: "Claude (AI)", icon: Sparkles, on: ints?.anthropic },
     { key: "gmail", name: "Gmail", icon: Mail, on: ints?.gmail },
-  ] as const;
+  ];
 
   return (
     <div className="min-h-screen">
