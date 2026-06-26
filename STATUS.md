@@ -132,3 +132,66 @@ now → the reply appears, auto-classified, sorted by interest. "Draft follow-up
 ### Next (P3 — Affiliate engine + attribution)
 `/join` signup → per-creator Shopify discount codes → order sync → per-affiliate revenue. Also:
 relax Vercel Deployment Protection for `/join` + webhooks.
+
+---
+
+## P3 — Affiliate engine + attribution (Module C) ✅ code complete
+
+### Built
+- **Public `/join`** signup (no auth) — creates the creator (first-party) + a pending affiliate
+  with a reserved unique code; nothing is created in Shopify until a team member activates it.
+- **`/affiliates` admin** — activate a creator → mints a unique **Shopify discount code** via
+  GraphQL `discountCodeBasicCreate` (idempotent; stores the discount node id); per-affiliate
+  performance (orders, revenue, AOV); **Sync attributed orders** button.
+- **Attribution** (`lib/affiliates.ts`) — matches Shopify orders' discount codes to affiliates,
+  inserts into `orders_attributed` idempotently (unique `shopify_order_id`). Creator status
+  auto-advances to `active` when the code is minted.
+- **Inngest** `sync-shopify-orders` cron (30 min) + the manual button share one code path.
+
+### Needs to run live
+`SHOPIFY_ADMIN_TOKEN` + `SHOPIFY_STORE_DOMAIN` (custom app scopes: `read_orders`,
+`write_discounts`). Relax **Vercel Deployment Protection** so `/join` is publicly reachable.
+
+### Manual test (P3)
+Open `/join`, sign up → appears on `/affiliates` as pending → Activate (mints the Shopify code)
+→ place a test order using that code → Sync attributed orders → revenue shows against the
+affiliate and on the dashboard funnel.
+
+---
+
+## P4 — Content tracking + funnel analytics (Modules D + E) ✅ code complete
+
+### Built
+- **Content tracking** (`lib/content.ts`) — polls Modash collaborations for active creators,
+  keeps posts that mention Laurel Bath House (sponsor match), stores in `content_mentions`
+  (idempotent by post key). Inngest `sync-content-mentions` cron (6h) + manual button.
+- **`/content`** library — grid of tracked posts (thumbnail, platform, date, engagement); filter
+  by creator handle / platform.
+- **Funnel dashboard** (`lib/analytics.ts`) — overview tiles now show **real counts** pulled live
+  from the DB: discovered → contacted → replied → active → posted → orders → revenue. No
+  placeholders.
+
+### Needs to run live
+`MODASH_API_KEY` for mention tracking. Funnel counts are always live.
+
+---
+
+## P5 — Polish / production readiness ✅
+
+- **Secrets**: all server-side (env vars), validated in `lib/env.ts`; only
+  `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` is client-exposed. `.env.example` documents every key;
+  nothing committed.
+- **Resilience**: every external client (Shopify, Modash, Anthropic, Gmail) wraps calls in retry
+  + exponential backoff + 429 handling; Modash enrichment honors the 30-day rule; reply / order /
+  mention ingest is idempotent.
+- **Empty / disabled states** everywhere an integration is unconfigured — never fabricated data.
+- **TikTok Shop**: deferred — needs TikTok Shop API access that isn't granted. The affiliate
+  model (codes + attribution) is structured to extend to it once access exists.
+- **Verified**: full `tsc --noEmit` clean across all source files; deployed green on Vercel.
+
+### Definition of done (whole project) — met
+Discover creators (incl. competitor-linked) → enrich + save → generate and send approved AI
+outreach → replies auto-prioritized by interest → convert creators to affiliates with unique
+Shopify codes → attributed revenue per affiliate → brand-mention content tracked → whole funnel
+on one dashboard. All data real, secrets server-side, deployed on Vercel. Live features activate
+as each API key is added.

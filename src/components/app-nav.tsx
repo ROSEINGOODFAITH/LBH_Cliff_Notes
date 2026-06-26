@@ -8,6 +8,8 @@ const LINKS = [
   { href: "/discovery", label: "Discovery" },
   { href: "/outreach", label: "Outreach" },
   { href: "/inbox", label: "Inbox" },
+  { href: "/affiliates", label: "Affiliates" },
+  { href: "/content", label: "Content" },
 ];
 
 export function AppNav({ active, email }: { active: string; email?: string | null }) {

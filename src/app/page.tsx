@@ -14,6 +14,8 @@ import {
 } from "lucide-react";
 import { requireTeamMember } from "@/lib/auth";
 import { integrations } from "@/lib/env";
+import { getFunnelCounts, type FunnelCounts } from "@/lib/analytics";
+import { formatUSD } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
@@ -32,14 +34,14 @@ function readIntegrations() {
   }
 }
 
-const FUNNEL = [
-  { label: "Discovered", icon: Search },
-  { label: "Contacted", icon: Mail },
-  { label: "Replied", icon: Users },
-  { label: "Active", icon: Sparkles },
-  { label: "Posted", icon: ImageIcon },
-  { label: "Orders", icon: ShoppingBag },
-  { label: "Revenue", icon: BarChart3 },
+const FUNNEL: { key: keyof FunnelCounts; label: string; icon: LucideIcon; money?: boolean }[] = [
+  { key: "discovered", label: "Discovered", icon: Search },
+  { key: "contacted", label: "Contacted", icon: Mail },
+  { key: "replied", label: "Replied", icon: Users },
+  { key: "active", label: "Active", icon: Sparkles },
+  { key: "posted", label: "Posted", icon: ImageIcon },
+  { key: "orders", label: "Orders", icon: ShoppingBag },
+  { key: "revenueCents", label: "Revenue", icon: BarChart3, money: true },
 ];
 
 const ROADMAP = [
@@ -54,6 +56,7 @@ const ROADMAP = [
 export default async function DashboardPage() {
   const team = await requireTeamMember();
   const ints = readIntegrations();
+  const funnel = await getFunnelCounts().catch(() => null);
 
   const integrationCards: {
     key: string;
@@ -113,20 +116,21 @@ export default async function DashboardPage() {
             <h2 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
               Funnel
             </h2>
-            <span className="text-xs text-muted-foreground">
-              Lights up as Modules A–E come online — no placeholder numbers.
-            </span>
+            <span className="text-xs text-muted-foreground">Live counts from your data — no placeholders.</span>
           </div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
-            {FUNNEL.map((f) => (
-              <Card key={f.label}>
-                <CardContent className="p-4">
-                  <f.icon className="mb-2 size-4 text-muted-foreground" />
-                  <div className="text-2xl font-semibold tabular-nums">—</div>
-                  <div className="text-xs text-muted-foreground">{f.label}</div>
-                </CardContent>
-              </Card>
-            ))}
+            {FUNNEL.map((f) => {
+              const val = funnel ? (f.money ? formatUSD(funnel[f.key]) : String(funnel[f.key])) : "—";
+              return (
+                <Card key={f.key}>
+                  <CardContent className="p-4">
+                    <f.icon className="mb-2 size-4 text-muted-foreground" />
+                    <div className="text-2xl font-semibold tabular-nums">{val}</div>
+                    <div className="text-xs text-muted-foreground">{f.label}</div>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         </section>
 

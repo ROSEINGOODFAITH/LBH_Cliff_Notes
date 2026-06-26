@@ -103,3 +103,43 @@ with a non-allowlisted email lands on `/not-authorized`.
 - **Idempotency** — unique keys on `shopify_order_id`, `post_url`, `gmail_message_id`,
   `discount_code` so order sync and code creation can't double-up.
 - **Evidence-first** — unconfigured integrations render empty states, never fake numbers.
+
+## App routes
+
+| Route | What it does |
+|---|---|
+| `/` | Overview dashboard — live funnel counts + data-source status |
+| `/creators` | Creator database: search/filter, manual add, CSV import, Shopify-tag seed, enrich |
+| `/discovery` | Competitor-collaboration discovery → review queue → approve into creators |
+| `/outreach` | Campaigns + AI draft generation, edit/regenerate, approve & send |
+| `/inbox` | Priority inbox — replies auto-classified, hottest first; draft follow-ups |
+| `/affiliates` | Activate creators → mint Shopify codes; per-affiliate revenue; order sync |
+| `/content` | Content library of brand-mention posts with engagement metrics |
+| `/join` | **Public** affiliate signup (no auth) |
+| `/api/health` | Public DB + integration health |
+| `/api/inngest` | Inngest endpoint for scheduled jobs (reply / order / mention sync) |
+
+## Daily / weekly operating workflow
+
+1. **Discover** (`/discovery`) — run competitor discovery, approve promising creators.
+2. **Enrich & triage** (`/creators`) — enrich saved creators, filter by niche / followers / ER.
+3. **Outreach** (`/outreach`) — pick a campaign, generate AI drafts, review, approve & send.
+4. **Work the inbox** (`/inbox`) — replies are auto-classified; act on "interested" first, draft
+   follow-ups for the rest. (Inngest syncs every 10 min, or hit Sync now.)
+5. **Convert** (`/affiliates`) — activate replied creators into affiliates; their Shopify code is
+   minted automatically. Share `/join` with inbound creators.
+6. **Measure** (`/` + `/affiliates` + `/content`) — funnel counts, attributed revenue per
+   affiliate, and the content they've posted, all update from live data.
+
+## Going fully live (checklist)
+
+- Add the remaining env vars in Vercel: `MODASH_API_KEY`, `ANTHROPIC_API_KEY`, `GMAIL_*`,
+  `SHOPIFY_*`, `INNGEST_*`.
+- Shopify custom app scopes: `read_orders`, `write_discounts`.
+- Gmail OAuth app scopes: `gmail.send`, `gmail.readonly`.
+- Register the Inngest app (point it at `https://<your-domain>/api/inngest`) for scheduled jobs.
+- **Relax Vercel Deployment Protection** (Settings → Deployment Protection) so the public `/join`
+  page and `/api/inngest` / webhook routes are reachable without Vercel SSO.
+
+> **TikTok Shop** (P5) is deferred until TikTok Shop API access is granted; the affiliate
+> code/attribution model is built to extend to it.

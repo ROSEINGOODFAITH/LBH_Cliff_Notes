@@ -1,4 +1,4 @@
-import { getEnv } from "@/lib/env";
+import { getEnv, integrations } from "@/lib/env";
 
 /**
  * Shopify Admin API client with retry + exponential backoff and 429 Retry-After
@@ -142,4 +142,51 @@ interface ShopifyRawOrder {
   subtotal_price?: string;
   currency?: string;
   discount_codes?: { code: string }[];
+}
+
+export function shopifyConfigured(): boolean {
+  try {
+    return integrations.shopify();
+  } catch {
+    return false;
+  }
+}
+
+/** Create a unique code-based percentage discount (P3). percentage is 0..1. */
+export interface DiscountResult {
+  id: string;
+}
+export async function createDiscountCode(opts: {
+  code: string;
+  title: string;
+  percentage: number;
+}): Promise<DiscountResult> {
+  const mutation = `mutation discountCodeBasicCreate($basicCodeDiscount: DiscountCodeBasicInput!) {
+    discountCodeBasicCreate(basicCodeDiscount: $basicCodeDiscount) {
+      codeDiscountNode { id }
+      userErrors { field message }
+    }
+  }`;
+  const variables = {
+    basicCodeDiscount: {
+      title: opts.title,
+      code: opts.code,
+      startsAt: new Date().toISOString(),
+      customerSelection: { all: true },
+      customerGets: { value: { percentage: opts.percentage }, items: { all: true } },
+      appliesOncePerCustomer: false,
+    },
+  };
+  const data = await shopifyGraphQL<{
+    discountCodeBasicCreate: {
+      codeDiscountNode: { id: string } | null;
+      userErrors: { field: string[] | null; message: string }[];
+    };
+  }>(mutation, variables);
+  const res = data.discountCodeBasicCreate;
+  if (res.userErrors?.length) {
+    throw new ShopifyError(`Discount create failed: ${res.userErrors.map((e) => e.message).join("; ")}`);
+  }
+  if (!res.codeDiscountNode) throw new ShopifyError("Discount create returned no node");
+  return { id: res.codeDiscountNode.id };
 }
