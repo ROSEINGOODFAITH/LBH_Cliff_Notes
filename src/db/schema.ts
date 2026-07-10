@@ -34,6 +34,19 @@ export const creatorStatusEnum = pgEnum("creator_status", [
   "declined",
   "dormant",
 ]);
+/** PULSE campaign pipeline stage (module-owned; coexists with `status`). */
+export const creatorStageEnum = pgEnum("creator_stage", [
+  "sourced",
+  "review",
+  "contacted",
+  "replied",
+  "onboarded",
+  "shipped",
+  "posted",
+  "paid",
+  "rejected",
+  "churned",
+]);
 export const campaignObjectiveEnum = pgEnum("campaign_objective", ["gifting", "affiliate", "paid"]);
 export const campaignStatusEnum = pgEnum("campaign_status", ["draft", "active", "paused", "completed"]);
 export const outreachChannelEnum = pgEnum("outreach_channel", ["email"]);
@@ -79,6 +92,23 @@ export const creators = pgTable(
     modashLastEnrichedAt: timestamp("modash_last_enriched_at", { withTimezone: true }),
     status: creatorStatusEnum("status").notNull().default("prospect"),
     notes: text("notes"),
+    // ---- PULSE campaign module (sourcing → HITL tiering → outreach → fulfillment) ----
+    avgViews: integer("avg_views"),
+    fakeFollowerPct: real("fake_follower_pct"), // 0..100
+    geo: text("geo"),
+    niche: text("niche"), // single primary niche (PULSE); `nicheTags` remains the multi-tag field
+    aestheticScore: integer("aesthetic_score"), // 0..100, Claude brand-fit
+    fitScore: integer("fit_score").default(50),
+    stage: creatorStageEnum("stage").notNull().default("sourced"),
+    tier: text("tier"), // A | B
+    discountCode: text("discount_code"),
+    rateUsd: integer("rate_usd"),
+    shopifyDraftOrderId: text("shopify_draft_order_id"),
+    trackingNumber: text("tracking_number"),
+    postUrl: text("post_url"),
+    postVerifiedAt: timestamp("post_verified_at", { withTimezone: true }),
+    disclosureOk: boolean("disclosure_ok"),
+    rawModash: jsonb("raw_modash"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
@@ -90,6 +120,9 @@ export const creators = pgTable(
     sourceIdx: index("creators_source_idx").on(t.source),
     handleIdx: index("creators_handle_idx").on(t.handle),
     modashIdUnique: uniqueIndex("creators_modash_id_unique").on(t.modashId),
+    stageIdx: index("creators_stage_idx").on(t.stage),
+    fitIdx: index("creators_fit_idx").on(t.fitScore),
+    discountCodeUnique: uniqueIndex("creators_discount_code_unique").on(t.discountCode),
   }),
 );
 
@@ -403,3 +436,53 @@ export const discoveryCandidates = pgTable(
 export const discoveryCandidatesRelations = relations(discoveryCandidates, ({ one }) => ({
   creator: one(creators, { fields: [discoveryCandidates.creatorId], references: [creators.id] }),
 }));
+
+/* ===========================================================================
+ * PULSE campaign module — HITL tiering decisions, learned model weights,
+ * outreach event log, payout approvals.
+ * ========================================================================= */
+export const decisions = pgTable("decisions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  creatorId: uuid("creator_id")
+    .notNull()
+    .references(() => creators.id),
+  action: text("action").notNull(), // tier_a | tier_b | reject
+  features: jsonb("features").notNull(),
+  decidedAt: timestamp("decided_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const modelWeights = pgTable("model_weights", {
+  id: integer("id").primaryKey().default(1),
+  weights: jsonb("weights").notNull().default({}),
+  decisionCount: integer("decision_count").notNull().default(0),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const outreachEvents = pgTable(
+  "outreach_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    creatorId: uuid("creator_id")
+      .notNull()
+      .references(() => creators.id),
+    type: text("type").notNull(), // pushed|sent|opened|replied|bounced|unsubscribed|nudge_sent
+    classification: text("classification"), // interested|negotiating|later|no
+    payload: jsonb("payload"),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    creatorTimeIdx: index("outreach_creator_time_idx").on(t.creatorId, t.occurredAt),
+  }),
+);
+
+export const payouts = pgTable("payouts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  creatorId: uuid("creator_id")
+    .notNull()
+    .references(() => creators.id),
+  half: text("half").notNull(), // signing | completion
+  amountUsd: integer("amount_usd").notNull(),
+  status: text("status").notNull().default("pending"), // pending|approved|paid
+  approvedBy: text("approved_by"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});

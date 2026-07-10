@@ -36,6 +36,16 @@ const envSchema = z.object({
 
   // ---- Tally onboarding webhook (P3) ----
   TALLY_SIGNING_SECRET: z.string().min(1).optional(),
+
+  // ---- PULSE campaign module ----
+  SMARTLEAD_API_KEY: z.string().min(1).optional(),
+  SMARTLEAD_CAMPAIGN_TIER_A: z.string().min(1).optional(),
+  SMARTLEAD_CAMPAIGN_TIER_B: z.string().min(1).optional(),
+  SMARTLEAD_WEBHOOK_SECRET: z.string().min(1).optional(),
+  PULSE_SEEDING_VARIANT_ID: z.string().min(1).optional(),
+  TALLY_FORM_URL: z.string().url().optional(),
+  CREATIVE_BRIEF_URL: z.string().url().optional(),
+  MOCK: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

@@ -22,6 +22,13 @@
       "when": 1783713636426,
       "tag": "0002_add_ig_handle_to_creators",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1783718600735,
+      "tag": "0003_cold_the_leader",
+      "breakpoints": true
     }
   ]
 }

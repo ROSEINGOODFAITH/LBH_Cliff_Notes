@@ -35,3 +35,7 @@ next-env.d.ts
 
 # vercel
 .vercel
+
+# local install/build logs
+npm-install.log
+*.log
