@@ -11,6 +11,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "bad request" }, { status: 400 });
   const c = (await db.select().from(creators).where(eq(creators.id, creatorId)))[0];
   if (!c || c.stage !== "review") return NextResponse.json({ error: "not in review" }, { status: 409 });
+  // Tiering without an email would silently no-op in outreach — refuse loudly instead.
+  if (action !== "reject" && !c.email)
+    return NextResponse.json({ error: "no email on file — creator can't enter outreach" }, { status: 409 });
 
   const features = extractFeatures(c);
   await db.insert(decisions).values({ creatorId, action, features });

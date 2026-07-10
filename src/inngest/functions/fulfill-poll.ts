@@ -19,12 +19,21 @@ export const fulfillPoll = inngest.createFunction(
         if (c.email) {
           const campaignId = c.tier === "A" ? process.env.SMARTLEAD_CAMPAIGN_TIER_A! : process.env.SMARTLEAD_CAMPAIGN_TIER_B!;
           await step.run(`shipped-email-${c.id}`, async () => {
-            const sent = await smartleadReply(campaignId, c.email!,
-              `PULSE is on its way! Tracking: ${tracking}\n\n` +
-              `Your creative brief: ${process.env.CREATIVE_BRIEF_URL ?? "(brief link)"}\n` +
-              `Your code (15% off for your audience, commission tracked to you): ${c.discountCode}\n\n` +
-              `One tiny string: if you post, tag it #ad or flip on TikTok's paid-partnership label. ` +
-              `Otherwise — no pressure, and thank you. — David & Laura, Laurel Bath House`);
+            // Best-effort: direct-relationship creators aren't in a Smartlead
+            // campaign, so this send can fail — log it and keep the pipeline moving
+            // (the failure is recorded in the outreach event for manual follow-up).
+            let sent: unknown;
+            try {
+              sent = await smartleadReply(campaignId, c.email!,
+                `PULSE is on its way! Tracking: ${tracking}\n\n` +
+                `Your creative brief: ${process.env.CREATIVE_BRIEF_URL ?? "(brief link)"}\n` +
+                `Your code (15% off for your audience, commission tracked to you): ${c.discountCode}\n\n` +
+                `One tiny string: if you post, tag it #ad or flip on TikTok's paid-partnership label. ` +
+                `Otherwise — no pressure, and thank you. — David & Laura, Laurel Bath House`);
+            } catch (e) {
+              console.warn(`[pulse] shipped email failed for @${c.handle}:`, String(e).slice(0, 400));
+              sent = { __unavailable: String(e).slice(0, 300) };
+            }
             await db.insert(outreachEvents).values({ creatorId: c.id, type: "sent", classification: null, payload: { shippedEmail: true, tracking, smartlead: sent } });
           });
         }

@@ -34,9 +34,9 @@ export async function modashSearch(page: number) {
   }));
 }
 
-export async function modashReport(userId: string) {
+export async function modashReport(userId: string, platform: "tiktok" | "instagram" | "youtube" = "tiktok") {
   if (MOCK) return { profile: {} };
-  return j(await fetch(`${MODASH}/tiktok/profile/${userId}/report`, { headers: modashHeaders() }));
+  return j(await fetch(`${MODASH}/${platform}/profile/${encodeURIComponent(userId)}/report`, { headers: modashHeaders() }));
 }
 
 /* ---------- Smartlead ---------- */

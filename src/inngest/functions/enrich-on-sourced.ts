@@ -23,10 +23,14 @@ export const enrichOnSourced = inngest.createFunction(
     if (!c || c.stage !== "sourced") return;
     // Best-effort: if Modash is rate-limited/out of API credits, proceed with
     // whatever data the row already has (CSV import) rather than sticking at `sourced`.
+    // Platform-aware report lookup: numeric modashId = real Modash userId (daily
+    // sourcing); otherwise look up by handle (manual/CSV intake, incl. Instagram).
+    const platform = c.primaryPlatform === "instagram" ? "instagram" : "tiktok";
+    const lookupId = c.modashId && /^\d+$/.test(c.modashId) ? c.modashId : c.handle;
     const report = await step.run("modash-report", async () => {
-      try { return await modashReport(c.modashId!); }
+      try { return await modashReport(lookupId, platform); }
       catch (e) {
-        console.warn(`[pulse] modash report unavailable for @${c.handle}:`, String(e).slice(0, 400));
+        console.warn(`[pulse] modash report unavailable for @${c.handle} (${platform}):`, String(e).slice(0, 400));
         return { __unavailable: String(e).slice(0, 300) };
       }
     });
@@ -45,7 +49,7 @@ export const enrichOnSourced = inngest.createFunction(
       geo: c.geo ?? (p?.audience?.geoCountries?.[0]?.code ?? pp.country ?? null),
       niche: c.niche ?? (NICHES.find((n) => interests.includes(n)) ?? null),
       email: c.email ??
-        ((Array.isArray(p?.contacts) ? p.contacts : []).find((x: any) => x?.type === "email")?.value ?? null),
+        ((Array.isArray(p?.contacts) ? p.contacts : []).find((x: any) => x?.type === "email")?.value?.toLowerCase() ?? null),
     };
     // Best-effort: a failed Claude call must not strand the creator at `sourced`.
     const profileJson = (report as any)?.__unavailable

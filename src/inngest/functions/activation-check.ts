@@ -27,8 +27,15 @@ export const activationCheck = inngest.createFunction(
       } else if (c.email) {
         const campaignId = c.tier === "A" ? process.env.SMARTLEAD_CAMPAIGN_TIER_A! : process.env.SMARTLEAD_CAMPAIGN_TIER_B!;
         await step.run(`nudge-${c.id}`, async () => {
-          const sent = await smartleadReply(campaignId, c.email!,
-            `Hi ${c.handle}! Hope PULSE landed safely — no rush at all, just checking if you have everything you need for your post. Your code ${c.discountCode} is live whenever you are.`);
+          // Best-effort — see fulfill-poll: log failures, never wedge the cron.
+          let sent: unknown;
+          try {
+            sent = await smartleadReply(campaignId, c.email!,
+              `Hi ${c.handle}! Hope PULSE landed safely — no rush at all, just checking if you have everything you need for your post. Your code ${c.discountCode} is live whenever you are.`);
+          } catch (e) {
+            console.warn(`[pulse] nudge email failed for @${c.handle}:`, String(e).slice(0, 400));
+            sent = { __unavailable: String(e).slice(0, 300) };
+          }
           await db.insert(outreachEvents).values({ creatorId: c.id, type: "nudge_sent", payload: { nudge: count + 1, smartlead: sent } });
         });
       }
