@@ -3,7 +3,13 @@
 
 export const MOCK = process.env.MOCK === "1";
 
-const j = (r: Response) => { if (!r.ok) throw new Error(`${r.url} ${r.status}`); return r.json(); };
+const j = async (r: Response) => {
+  if (!r.ok) {
+    const body = await r.text().catch(() => "");
+    throw new Error(`${r.url} ${r.status} ${body.slice(0, 300)}`); // keep the API's error code/message for diagnosis
+  }
+  return r.json();
+};
 
 /* ---------- Modash ---------- */
 const MODASH = "https://api.modash.io/v1";

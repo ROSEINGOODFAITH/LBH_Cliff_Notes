@@ -33,12 +33,55 @@ export default function PulsePage() {
     load();
   };
 
+  // Accepts a plain handle list OR a pasted/uploaded Modash CSV export
+  // (headers fuzzy-matched; 12.5K/1.2M/3.4% values parsed).
+  const parseImport = (text: string): any[] => {
+    const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    if (!lines.length) return [];
+    const delim = lines[0].includes("\t") ? "\t" : ",";
+    const split = (line: string) => line
+      .split(new RegExp(`${delim === "\t" ? "\\t" : ","}(?=(?:[^"]*"[^"]*")*[^"]*$)`))
+      .map(c => c.replace(/^"+|"+$/g, "").trim());
+    const header = split(lines[0]).map(h => h.toLowerCase());
+    const isCsv = header.length > 1 && header.some(h => /user|handle|follower|engagement|view|email/.test(h));
+    if (!isCsv) return text.split(/[\s,;]+/).filter(Boolean).map(handle => ({ handle }));
+    const col = (re: RegExp) => header.findIndex(h => re.test(h));
+    const iH = (() => { const a = col(/tiktok|handle|user ?name|^user$/); return a >= 0 ? a : col(/name/); })();
+    const iF = col(/follower/), iE = col(/engagement/), iV = col(/view/), iM = col(/e-?mail/);
+    const iG = col(/country|geo|location/), iFake = col(/fake/), iCred = col(/credib/);
+    const toNum = (s?: string): number | null => {
+      if (!s) return null;
+      const m = s.replace(/[,\s"]/g, "").match(/^([0-9.]+)([kmKM%])?$/);
+      if (!m) return null;
+      let n = parseFloat(m[1]); if (Number.isNaN(n)) return null;
+      const u = (m[2] || "").toLowerCase();
+      if (u === "k") n *= 1e3; if (u === "m") n *= 1e6;
+      return n;
+    };
+    return lines.slice(1).map(line => {
+      const c = split(line);
+      const erRaw = iE >= 0 ? c[iE] : undefined;
+      let er = toNum(erRaw);
+      if (er != null && ((erRaw ?? "").includes("%") || er > 1)) er = er / 100;
+      const cred = iCred >= 0 ? toNum(c[iCred]) : null;
+      return {
+        handle: iH >= 0 ? c[iH] : c[0],
+        followerCount: iF >= 0 ? toNum(c[iF]) : null,
+        engagementRate: er,
+        avgViews: iV >= 0 ? toNum(c[iV]) : null,
+        fakeFollowerPct: iFake >= 0 ? toNum(c[iFake]) : (cred != null && cred <= 1 ? (1 - cred) * 100 : null),
+        geo: iG >= 0 ? (c[iG] || null) : null,
+        email: iM >= 0 ? (c[iM] || null) : null,
+      };
+    }).filter(r => r.handle);
+  };
+
   const importHandles = async () => {
-    const handles = importText.split(/[\s,;]+/).map(h => h.trim()).filter(Boolean);
-    if (!handles.length || importing) return;
+    const rows = parseImport(importText);
+    if (!rows.length || importing) return;
     setImporting(true);
     try {
-      const r = await fetch("/api/pulse/source", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ handles }) });
+      const r = await fetch("/api/pulse/source", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ rows }) });
       const j = await r.json();
       setFlash(r.ok
         ? `✓ ${j.queued} queued for enrichment${j.requeued ? ` · ${j.requeued} retried` : ""} · ${j.duplicates} already known${j.invalid ? ` · ${j.invalid} invalid` : ""}`
@@ -109,10 +152,12 @@ export default function PulsePage() {
               <button style={S.btn} onClick={() => setShowImport(true)}>Import from Modash list</button>)}
             {showImport && (
               <div style={{ padding: "20px 24px", background: "white", borderRadius: 16, boxShadow: "0 1px 2px oklch(0 0 0/.05), 0 8px 32px oklch(0 0 0/.06)" }}>
-                <div style={{ ...S.mono, marginBottom: 8, color: "oklch(0.55 0.01 90)" }}>PASTE TIKTOK HANDLES FROM YOUR MODASH LIST — one per line, commas, @handles, or profile URLs</div>
+                <div style={{ ...S.mono, marginBottom: 8, color: "oklch(0.55 0.01 90)" }}>PASTE TIKTOK HANDLES — OR YOUR MODASH LIST CSV EXPORT (STATS COME ALONG, NO API NEEDED)</div>
                 <textarea value={importText} onChange={(e) => setImportText(e.target.value)} rows={6}
-                  placeholder={"@creator1\n@creator2\nhttps://www.tiktok.com/@creator3"}
+                  placeholder={"@creator1\n@creator2\nhttps://www.tiktok.com/@creator3\n\n…or paste/upload the CSV export of your Modash list"}
                   style={{ width: "100%", boxSizing: "border-box", border: "1px solid oklch(0.85 0.01 90)", borderRadius: 8, padding: 10, fontSize: 13, fontFamily: "'Geist Mono',ui-monospace,monospace" }} />
+                <input type="file" accept=".csv,.tsv,.txt" style={{ fontSize: 12, marginTop: 8, display: "block" }}
+                  onChange={(e) => { const f = e.target.files?.[0]; if (!f) return; const rd = new FileReader(); rd.onload = () => setImportText(String(rd.result ?? "")); rd.readAsText(f); }} />
                 <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
                   <button style={{ ...S.btn, background: "oklch(0.25 0.02 90)", color: "white", border: "none", fontWeight: 600, opacity: importing ? 0.6 : 1 }} disabled={importing} onClick={importHandles}>{importing ? "Importing…" : "Queue for review"}</button>
                   <button style={S.btn} onClick={() => setShowImport(false)}>Cancel</button>

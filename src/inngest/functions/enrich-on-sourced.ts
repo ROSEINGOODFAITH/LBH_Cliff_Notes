@@ -21,7 +21,12 @@ export const enrichOnSourced = inngest.createFunction(
   async ({ event, step }) => {
     const c = (await db.select().from(creators).where(eq(creators.id, event.data.creatorId)))[0];
     if (!c || c.stage !== "sourced") return;
-    const report = await step.run("modash-report", () => modashReport(c.modashId!));
+    // Best-effort: if Modash is rate-limited/out of API credits, proceed with
+    // whatever data the row already has (CSV import) rather than sticking at `sourced`.
+    const report = await step.run("modash-report", async () => {
+      try { return await modashReport(c.modashId!); }
+      catch (e) { return { __unavailable: String(e).slice(0, 300) }; }
+    });
     // Backfill profile stats from the report — manual list-intake rows start with
     // nulls (daily-search rows already carry them from the search response).
     const p = (report as any)?.profile ?? {};
@@ -39,15 +44,25 @@ export const enrichOnSourced = inngest.createFunction(
       email: c.email ??
         ((Array.isArray(p?.contacts) ? p.contacts : []).find((x: any) => x?.type === "email")?.value ?? null),
     };
-    const ai = await step.run("claude-brand-fit", async () => parseClaudeJson(await claude(
-      `You score TikTok creators for Laurel Bath House, a refined DTC fragrance brand launching PULSE.
-Profile JSON: ${JSON.stringify(report).slice(0, 6000)}
-Return ONLY JSON: {"aestheticScore": 0-100 brand fit, "firstLine": "one specific, warm, non-generic opening line referencing their content"}`)));
+    // Best-effort: a failed Claude call must not strand the creator at `sourced`.
+    const profileJson = (report as any)?.__unavailable
+      ? { handle: c.handle, ...stats, note: "Modash report unavailable — stats from import" }
+      : report;
+    const ai = await step.run("claude-brand-fit", async () => {
+      try {
+        return parseClaudeJson(await claude(
+          `You score TikTok creators for Laurel Bath House, a refined DTC fragrance brand launching PULSE.
+Profile JSON: ${JSON.stringify(profileJson).slice(0, 6000)}
+Return ONLY JSON: {"aestheticScore": 0-100 brand fit, "firstLine": "one specific, warm, non-generic opening line referencing their content"}`));
+      } catch (e) {
+        return { aestheticScore: null, firstLine: "", __unavailable: String(e).slice(0, 300) };
+      }
+    });
     const [w] = await db.select().from(modelWeights);
-    const merged = { ...c, ...stats, aestheticScore: ai.aestheticScore };
+    const merged = { ...c, ...stats, aestheticScore: ai.aestheticScore ?? null };
     await step.run("save", () => db.update(creators).set({
       ...stats,
-      aestheticScore: ai.aestheticScore,
+      aestheticScore: ai.aestheticScore ?? null,
       fitScore: fitScore(merged, (w?.weights as any) ?? {}),
       rawModash: { ...(c.rawModash as any), report, firstLine: ai.firstLine },
       stage: "review", updatedAt: new Date(),
