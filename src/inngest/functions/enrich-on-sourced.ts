@@ -9,7 +9,14 @@ const NICHES = ["fragrance", "beauty", "lifestyle", "grwm", "fitness", "fashion"
 const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
 
 export const enrichOnSourced = inngest.createFunction(
-  { id: "pulse-enrich-on-sourced", concurrency: 5 },
+  {
+    id: "pulse-enrich-on-sourced",
+    concurrency: 5,
+    // Modash rate-limits profile-report pulls (bulk imports produced 429 storms).
+    // Pace new runs to 6/min and give rate-limited runs enough retries to drain.
+    throttle: { limit: 6, period: "1m" },
+    retries: 10,
+  },
   { event: "creator.sourced" },
   async ({ event, step }) => {
     const c = (await db.select().from(creators).where(eq(creators.id, event.data.creatorId)))[0];

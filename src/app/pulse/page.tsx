@@ -8,7 +8,7 @@ const S: any = {
   mono: { fontFamily: "'Geist Mono',ui-monospace,monospace", fontSize: 11, letterSpacing: "0.02em" },
   btn: { border: "1px solid oklch(0.85 0.01 90)", background: "white", borderRadius: 8, padding: "7px 14px", fontSize: 13, cursor: "pointer", fontFamily: "inherit" },
 };
-const STAGE_COLS = ["contacted", "replied", "onboarded", "shipped", "posted", "paid"];
+const STAGE_COLS = ["sourced", "review", "contacted", "replied", "onboarded", "shipped", "posted", "paid"];
 
 export default function PulsePage() {
   const [queue, setQueue] = useState<any[]>([]);
@@ -41,7 +41,7 @@ export default function PulsePage() {
       const r = await fetch("/api/pulse/source", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ handles }) });
       const j = await r.json();
       setFlash(r.ok
-        ? `✓ ${j.queued} queued for enrichment · ${j.duplicates} already known${j.invalid ? ` · ${j.invalid} invalid` : ""}`
+        ? `✓ ${j.queued} queued for enrichment${j.requeued ? ` · ${j.requeued} retried` : ""} · ${j.duplicates} already known${j.invalid ? ` · ${j.invalid} invalid` : ""}`
         : `✕ ${j.error ?? "import failed"}`);
       if (r.ok) { setImportText(""); setShowImport(false); }
     } catch { setFlash("✕ import failed"); }

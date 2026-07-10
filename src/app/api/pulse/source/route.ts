@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { creators } from "@/db/schema";
 import { inngest } from "@/lib/inngest";
@@ -28,7 +29,7 @@ export async function POST(req: NextRequest) {
   const invalid = normalized.filter((h) => !HANDLE_RE.test(h)).length;
   const clean = [...new Set(normalized.filter((h) => HANDLE_RE.test(h)))].slice(0, 500);
 
-  let queued = 0, duplicates = 0;
+  let queued = 0, requeued = 0, duplicates = 0;
   for (const handle of clean) {
     const row = await db.insert(creators).values({
       modashId: handle, // Modash report lookups accept handle or userId; unique index = dedupe key
@@ -40,7 +41,17 @@ export async function POST(req: NextRequest) {
     if (row.length) {
       queued++;
       await inngest.send({ name: "creator.sourced", data: { creatorId: row[0].id } });
-    } else duplicates++;
+    } else {
+      // Already known. If it's still waiting on enrichment (e.g. an earlier
+      // import hit Modash rate limits), re-emit so it gets another pass —
+      // re-pasting the same list is the self-serve retry.
+      const existing = (await db.select({ id: creators.id, stage: creators.stage })
+        .from(creators).where(eq(creators.modashId, handle)))[0];
+      if (existing?.stage === "sourced") {
+        requeued++;
+        await inngest.send({ name: "creator.sourced", data: { creatorId: existing.id } });
+      } else duplicates++;
+    }
   }
-  return NextResponse.json({ ok: true, received: handles.length, queued, duplicates, invalid });
+  return NextResponse.json({ ok: true, received: handles.length, queued, requeued, duplicates, invalid });
 }
