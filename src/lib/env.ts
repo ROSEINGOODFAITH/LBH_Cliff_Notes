@@ -33,6 +33,9 @@ const envSchema = z.object({
   // ---- Inngest background jobs (P2+) ----
   INNGEST_EVENT_KEY: z.string().min(1).optional(),
   INNGEST_SIGNING_KEY: z.string().min(1).optional(),
+
+  // ---- Tally onboarding webhook (P3) ----
+  TALLY_SIGNING_SECRET: z.string().min(1).optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -74,5 +77,8 @@ export const integrations = {
   inngest(): boolean {
     const e = getEnv();
     return Boolean(e.INNGEST_EVENT_KEY && e.INNGEST_SIGNING_KEY);
+  },
+  tally(): boolean {
+    return Boolean(getEnv().TALLY_SIGNING_SECRET);
   },
 };
