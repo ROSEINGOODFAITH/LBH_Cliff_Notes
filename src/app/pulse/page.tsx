@@ -15,6 +15,9 @@ export default function PulsePage() {
   const [dash, setDash] = useState<any>(null);
   const [tab, setTab] = useState("review");
   const [flash, setFlash] = useState("");
+  const [showImport, setShowImport] = useState(false);
+  const [importText, setImportText] = useState("");
+  const [importing, setImporting] = useState(false);
 
   const load = async () => {
     const [q, d] = await Promise.all([fetch("/api/pulse/queue").then(r => r.json()), fetch("/api/pulse/dashboard").then(r => r.json())]);
@@ -27,6 +30,23 @@ export default function PulsePage() {
     setFlash(action === "reject" ? `✕ ${c.handle} — model updated` : `✓ ${c.handle} → outreach queue`);
     setTimeout(() => setFlash(""), 2000);
     await fetch("/api/pulse/decision", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ creatorId: c.id, action }) });
+    load();
+  };
+
+  const importHandles = async () => {
+    const handles = importText.split(/[\s,;]+/).map(h => h.trim()).filter(Boolean);
+    if (!handles.length || importing) return;
+    setImporting(true);
+    try {
+      const r = await fetch("/api/pulse/source", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ handles }) });
+      const j = await r.json();
+      setFlash(r.ok
+        ? `✓ ${j.queued} queued for enrichment · ${j.duplicates} already known${j.invalid ? ` · ${j.invalid} invalid` : ""}`
+        : `✕ ${j.error ?? "import failed"}`);
+      if (r.ok) { setImportText(""); setShowImport(false); }
+    } catch { setFlash("✕ import failed"); }
+    setImporting(false);
+    setTimeout(() => setFlash(""), 6000);
     load();
   };
 
@@ -61,7 +81,7 @@ export default function PulsePage() {
       {tab === "review" && (
         <section style={{ maxWidth: 720, margin: "32px auto 0" }}>
           <h2 style={{ ...S.serif, fontSize: 24 }}>Human-in-the-loop tiering</h2>
-          {!next && <p style={S.serif}>Queue clear — the daily Modash pull refills it each morning.</p>}
+          {!next && <p style={S.serif}>Queue clear — the daily Modash pull refills it each morning, or import your Modash list below.</p>}
           {next && (
             <div style={{ marginTop: 12, padding: "28px 32px", background: "white", borderRadius: 16, boxShadow: "0 1px 2px oklch(0 0 0/.05), 0 8px 32px oklch(0 0 0/.06)" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
@@ -83,6 +103,23 @@ export default function PulsePage() {
               <span>@{c.handle} <span style={{ color: "oklch(0.55 0.01 90)" }}>· {c.niche} · {((c.followerCount ?? 0) / 1000).toFixed(0)}k</span></span>
               <span style={S.mono}>{c.fitScore}</span>
             </div>))}
+
+          <div style={{ marginTop: 28 }}>
+            {!showImport && (
+              <button style={S.btn} onClick={() => setShowImport(true)}>Import from Modash list</button>)}
+            {showImport && (
+              <div style={{ padding: "20px 24px", background: "white", borderRadius: 16, boxShadow: "0 1px 2px oklch(0 0 0/.05), 0 8px 32px oklch(0 0 0/.06)" }}>
+                <div style={{ ...S.mono, marginBottom: 8, color: "oklch(0.55 0.01 90)" }}>PASTE TIKTOK HANDLES FROM YOUR MODASH LIST — one per line, commas, @handles, or profile URLs</div>
+                <textarea value={importText} onChange={(e) => setImportText(e.target.value)} rows={6}
+                  placeholder={"@creator1\n@creator2\nhttps://www.tiktok.com/@creator3"}
+                  style={{ width: "100%", boxSizing: "border-box", border: "1px solid oklch(0.85 0.01 90)", borderRadius: 8, padding: 10, fontSize: 13, fontFamily: "'Geist Mono',ui-monospace,monospace" }} />
+                <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
+                  <button style={{ ...S.btn, background: "oklch(0.25 0.02 90)", color: "white", border: "none", fontWeight: 600, opacity: importing ? 0.6 : 1 }} disabled={importing} onClick={importHandles}>{importing ? "Importing…" : "Queue for review"}</button>
+                  <button style={S.btn} onClick={() => setShowImport(false)}>Cancel</button>
+                </div>
+                <p style={{ fontSize: 12, color: "oklch(0.5 0.01 90)", marginTop: 8 }}>Each handle is enriched via Modash + Claude and lands in this queue ranked by fit. Duplicates are skipped automatically.</p>
+              </div>)}
+          </div>
         </section>)}
 
       {tab === "pipeline" && (

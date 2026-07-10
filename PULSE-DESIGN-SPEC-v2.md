@@ -137,3 +137,8 @@ MOCK                         unset/0 in production (1 = fake data, no external c
 8. David clicks Approve → Tier A creator → `paid`. Dashboard bars tick toward 500 / 100.
 
 If any step in the repo deviates from this sequence, fix the repo to match.
+
+## 12. Addendum — manual Modash list intake (2026-07-10, owner-requested)
+
+- `POST /api/pulse/source` `{handles: string[]}` (Clerk-protected, ≤500/request) — normalizes TikTok handles (strips URL/@, lowercases), dedupes on `modashId` (the handle serves as the dedupe key for manual intake), inserts as stage `sourced`, emits `creator.sourced` per new row. UI: "Import from Modash list" panel on the /pulse Review tab. Rationale: Modash's public API does not expose in-app Lists, so curated lists are pasted (or CSV-exported) from the Modash app.
+- `pulse/enrich.on-sourced` additionally backfills followerCount, engagementRate, avgViews, fakeFollowerPct (1−credibility), geo, niche, and email from the Modash profile report whenever the creator row lacks them. Daily-search rows already carry these from the search response; intake rows start empty.
