@@ -132,6 +132,8 @@ export default function PulsePage() {
       let er = toNum(erRaw);
       if (er != null && ((erRaw ?? "").includes("%") || er > 1)) er = er / 100;
       const cred = iCred >= 0 ? toNum(c[iCred]) : null;
+      // Modash cells can hold several emails — capture all of them.
+      const allEmails = (iM >= 0 ? (c[iM] ?? "") : line).match(/[^\s@,;"<>]+@[^\s@,;"<>]+\.[^\s@,;"<>]+/g) ?? [];
       return {
         handle: iH >= 0 ? c[iH] : c[0],
         followerCount: iF >= 0 ? toNum(c[iF]) : null,
@@ -139,7 +141,8 @@ export default function PulsePage() {
         avgViews: iV >= 0 ? toNum(c[iV]) : null,
         fakeFollowerPct: iFake >= 0 ? toNum(c[iFake]) : (cred != null && cred <= 1 ? (1 - cred) * 100 : null),
         geo: iG >= 0 ? (c[iG] || null) : null,
-        email: iM >= 0 ? (c[iM] || null) : null,
+        email: allEmails[0] ?? null,
+        emails: allEmails.length > 1 ? allEmails : undefined,
       };
     }).filter(r => r.handle);
   };
@@ -209,6 +212,8 @@ export default function PulsePage() {
         ].filter(Boolean).join(" and ") + ". Everything else is moving."
       : `Nothing needs you. ${inMotion} in motion, ${postedTotal} posted.`;
 
+  const hasAddress = Boolean((next as any)?.rawModash?.shipping);
+  const canDecide = Boolean(next?.email || hasAddress);
   const cardStats = next ? [
     ["Followers", next.followerCount != null ? Number(next.followerCount).toLocaleString() : null],
     ["Engagement", next.engagementRate != null ? (next.engagementRate * 100).toFixed(1) + "%" : null],
@@ -289,6 +294,14 @@ export default function PulsePage() {
             ) : (
               <p style={{ fontSize: 13, ...S.muted, margin: "16px 0 4px" }}>No stats yet — open their profile above and judge the content.</p>
             )}
+            {hasAddress && (
+              <p style={{ fontSize: 13, margin: "12px 0 0", fontWeight: 500 }}>
+                Filled your address form ✓ — approving ships to them right away.
+              </p>)}
+            {(next as any)?.rawModash?.formChoices && (
+              <p style={{ fontSize: 13, margin: "8px 0 0" }}>
+                They asked for: <b>{(next as any).rawModash.formChoices}</b>
+              </p>)}
             {!next.email && (
               <div style={{ display: "flex", gap: 8, margin: "12px 0 0", alignItems: "center" }}>
                 <input value={emailDraft} onChange={(e) => setEmailDraft(e.target.value)}
@@ -297,17 +310,17 @@ export default function PulsePage() {
                 <button style={S.btn} onClick={saveEmail}>Save</button>
               </div>)}
             <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
-              <button disabled={!next.email} style={{ ...S.btn, ...PRIMARY, flex: 1, padding: 12, opacity: next.email ? 1 : 0.4, cursor: next.email ? "pointer" : "not-allowed" }}
+              <button disabled={!canDecide} style={{ ...S.btn, ...PRIMARY, flex: 1, padding: 12, opacity: canDecide ? 1 : 0.4, cursor: canDecide ? "pointer" : "not-allowed" }}
                 onClick={() => decide(next, "tier_a")}>Pay for a review</button>
-              <button disabled={!next.email} style={{ ...S.btn, flex: 1, padding: 12, opacity: next.email ? 1 : 0.4, cursor: next.email ? "pointer" : "not-allowed" }}
+              <button disabled={!canDecide} style={{ ...S.btn, flex: 1, padding: 12, opacity: canDecide ? 1 : 0.4, cursor: canDecide ? "pointer" : "not-allowed" }}
                 onClick={() => decide(next, "tier_b")}>Send a gift</button>
               <button style={{ ...S.btn, padding: "12px 18px", color: "oklch(0.5 0.15 25)" }} onClick={() => decide(next, "reject")}>Pass</button>
             </div>
-            {!next.email && (
+            {!canDecide && (
               <p style={{ fontSize: 12, color: "oklch(0.5 0.12 25)", marginTop: 8 }}>
                 No email — we can&apos;t invite them. Paste one above, or pass.
               </p>)}
-            {next.email && <p style={{ fontSize: 12, ...S.muted, marginTop: 8 }}>Paid review: the rate is agreed after they accept — nothing is owed today.</p>}
+            {canDecide && <p style={{ fontSize: 12, ...S.muted, marginTop: 8 }}>Paid review: the rate is agreed after they accept — nothing is owed today.</p>}
             {queue.length > 1 && <p style={{ fontSize: 12, ...S.muted, marginTop: 12 }}>{queue.length - 1} more after this one.</p>}
           </div>)}
 

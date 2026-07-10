@@ -45,24 +45,31 @@ export async function POST(req: Request) {
 
   const f = flattenTallyFields(payload);
   const email = extractEmail(payload);
+  const keys = Object.keys(f);
+  const findKey = (re: RegExp, exclude?: RegExp) => keys.find(k => re.test(k) && !(exclude && exclude.test(k)));
   const igHandle = f["instagram handle"] ?? f["instagram"] ?? f["ig handle"];
   const tiktokHandle = f["tiktok handle"] ?? f["tiktok"] ?? f["handle"];
-  const address1 = f["address"] ?? f["address line 1"] ?? f["street address"] ?? f["shipping address"];
+  // Fuzzy address detection — form labels vary ("Address", "Street address",
+  // "Mailing address"…); never mistake "Email address" or a handle for it.
+  const addressKey = findKey(/address|street/, /e-?mail|instagram|tiktok|handle/);
+  const address1 = addressKey ? f[addressKey] : null;
 
-  // ---- PULSE seeding intake: anything with a shipping address ----
-  if (address1) {
+  // ---- PULSE intake: anything with a shipping address OR a TikTok handle ----
+  // (unknown submitters become a "Your call" decision, never raw "Found")
+  if (address1 || tiktokHandle) {
     await inngest.send({
       name: "tally/intake.submitted",
       data: {
         handle: tiktokHandle,
         email,
         igHandle,
-        name: f["name"] ?? f["full name"],
+        name: f[findKey(/^(full )?name/) ?? ""] ?? f["name"] ?? null,
         address1,
-        city: f["city"],
-        province: f["state"] ?? f["province"],
-        zip: f["zip"] ?? f["zip code"] ?? f["postal code"],
-        country: f["country"] ?? "US",
+        city: f[findKey(/city|town/) ?? ""] ?? null,
+        province: f[findKey(/state|province|region/) ?? ""] ?? null,
+        zip: f[findKey(/zip|postal/) ?? ""] ?? null,
+        country: f[findKey(/country/) ?? ""] ?? "US",
+        choices: f[findKey(/would you want|want to/) ?? ""] ?? null,
       },
     });
     return NextResponse.json({ ok: true, flow: "pulse" });

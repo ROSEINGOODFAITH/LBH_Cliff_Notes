@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
 
   /* ------------------------- prospects: review queue ------------------------ */
   const seen = new Set<string>();
-  const rows: { handle: string; platform: "tiktok" | "instagram"; stats: Record<string, any> }[] = [];
+  const rows: { handle: string; platform: "tiktok" | "instagram"; stats: Record<string, any>; extraEmails: string[] | null }[] = [];
   let invalid = 0;
   for (const r of rawRows) {
     const handle = normalize(String(r?.handle ?? ""));
@@ -89,13 +89,21 @@ export async function POST(req: NextRequest) {
     if (num(r?.fakeFollowerPct) != null) stats.fakeFollowerPct = num(r?.fakeFollowerPct);
     if (str(r?.geo)) stats.geo = str(r?.geo);
     if (str(r?.niche)) stats.niche = str(r?.niche)!.toLowerCase();
-    if (str(r?.email)) stats.email = str(r?.email)!.toLowerCase();
-    rows.push({ handle, platform, stats });
+    // Emails: validate, lowercase, dedupe; first becomes the contact address,
+    // the rest are kept on the creator's file (rawModash.emails).
+    const emailCandidates: unknown[] = Array.isArray(r?.emails) ? r.emails : [r?.email];
+    const emails: string[] = [...new Set(
+      emailCandidates
+        .map((e) => String(e ?? "").trim().toLowerCase())
+        .filter((e) => EMAIL_RE.test(e)),
+    )].slice(0, 5);
+    if (emails.length) stats.email = emails[0];
+    rows.push({ handle, platform, stats, extraEmails: emails.length > 1 ? emails : null });
     if (rows.length >= 500) break;
   }
 
   let queued = 0, requeued = 0, duplicates = 0;
-  for (const { handle, platform, stats } of rows) {
+  for (const { handle, platform, stats, extraEmails } of rows) {
     // Dedupe key: TikTok keeps the bare handle (back-compat with existing rows);
     // Instagram is prefixed so the same handle string on both platforms can't collide.
     const dedupeKey = platform === "instagram" ? `ig:${handle}` : handle;
@@ -106,7 +114,7 @@ export async function POST(req: NextRequest) {
       primaryPlatform: platform,
       ...(platform === "instagram" ? { igHandle: handle } : {}),
       ...stats,
-      rawModash: { manualIntake: true, importedAt: new Date().toISOString() },
+      rawModash: { manualIntake: true, importedAt: new Date().toISOString(), ...(extraEmails ? { emails: extraEmails } : {}) },
     }).onConflictDoNothing({ target: creators.modashId }).returning({ id: creators.id });
     if (row.length) {
       queued++;
