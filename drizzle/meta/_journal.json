@@ -15,6 +15,13 @@
       "when": 1782504912470,
       "tag": "0001_add_discovery_candidates",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1783713636426,
+      "tag": "0002_add_ig_handle_to_creators",
+      "breakpoints": true
     }
   ]
 }

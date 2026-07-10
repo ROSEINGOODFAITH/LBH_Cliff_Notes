@@ -66,6 +66,7 @@ export const creators = pgTable(
     handle: text("handle").notNull(),
     displayName: text("display_name"),
     email: text("email"),
+    igHandle: text("ig_handle"), // nullable — self-reported IG handle (Tally onboarding)
     primaryPlatform: platformEnum("primary_platform"),
     followerCount: integer("follower_count"),
     engagementRate: real("engagement_rate"), // 0..1 (e.g. 0.034 = 3.4%)
