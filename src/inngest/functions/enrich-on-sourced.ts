@@ -25,7 +25,10 @@ export const enrichOnSourced = inngest.createFunction(
     // whatever data the row already has (CSV import) rather than sticking at `sourced`.
     const report = await step.run("modash-report", async () => {
       try { return await modashReport(c.modashId!); }
-      catch (e) { return { __unavailable: String(e).slice(0, 300) }; }
+      catch (e) {
+        console.warn(`[pulse] modash report unavailable for @${c.handle}:`, String(e).slice(0, 400));
+        return { __unavailable: String(e).slice(0, 300) };
+      }
     });
     // Backfill profile stats from the report — manual list-intake rows start with
     // nulls (daily-search rows already carry them from the search response).
@@ -55,6 +58,7 @@ export const enrichOnSourced = inngest.createFunction(
 Profile JSON: ${JSON.stringify(profileJson).slice(0, 6000)}
 Return ONLY JSON: {"aestheticScore": 0-100 brand fit, "firstLine": "one specific, warm, non-generic opening line referencing their content"}`));
       } catch (e) {
+        console.warn(`[pulse] claude scoring unavailable for @${c.handle}:`, String(e).slice(0, 400));
         return { aestheticScore: null, firstLine: "", __unavailable: String(e).slice(0, 300) };
       }
     });
