@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import {
   flattenTallyFields,
+  extractEmail,
   onboardTally,
   verifyTallySignature,
   TallyNotConfiguredError,
@@ -39,7 +40,7 @@ export async function POST(req: Request) {
   const f = flattenTallyFields(payload);
 
   const eventData = {
-    email: f["email"],
+    email: extractEmail(payload),
     igHandle: f["instagram handle"],
     displayName: f["name"] ?? f["full name"] ?? null,
   };

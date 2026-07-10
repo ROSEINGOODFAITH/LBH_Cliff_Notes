@@ -50,6 +50,32 @@ function normalizeValue(value: unknown): string | null {
   return s.length ? s : null;
 }
 
+/** Matches a plausible email address (local@domain.tld). */
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/**
+ * Best-effort email extraction, resilient to how the Tally question is labeled.
+ * Preference: (1) an email-type field (Tally INPUT_EMAIL), (2) a field whose
+ * label mentions "email"/"e-mail", (3) any value shaped like an email address.
+ * Result is trimmed + lowercased.
+ */
+export function extractEmail(payload: TallyWebhookPayload): string | null {
+  const fields = payload.data?.fields ?? [];
+  const preferred: (TallyField | undefined)[] = [
+    fields.find((f) => /email/i.test(f.type ?? "")),
+    fields.find((f) => /e-?mail/i.test(f.label ?? "")),
+  ];
+  for (const c of preferred) {
+    const v = c ? normalizeValue(c.value) : null;
+    if (v) return v.toLowerCase();
+  }
+  for (const f of fields) {
+    const v = normalizeValue(f.value);
+    if (v && EMAIL_RE.test(v)) return v.toLowerCase();
+  }
+  return null;
+}
+
 /**
  * Verify Tally's `Tally-Signature` header: base64 HMAC-SHA256 of the raw
  * request body keyed by TALLY_SIGNING_SECRET. Throws if unconfigured so the
