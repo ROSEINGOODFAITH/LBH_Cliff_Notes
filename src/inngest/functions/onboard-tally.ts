@@ -86,12 +86,18 @@ export const onboardTally = inngest.createFunction(
     // Duplicate submissions after shipping started: ignore.
     if (["onboarded", "shipped", "posted", "paid", "rejected", "churned"].includes(c.stage)) return;
 
+    // A draft order already on file means the gift shipped once; a redelivered
+    // webhook must not create a second free order. We check the draft-order id
+    // specifically (not isProvisioned): a discountCode alone is expected here —
+    // it's minted at invite time and legitimately precedes a later ship-now.
+    if (c.shopifyDraftOrderId) return;
+
     // Already invited/replied, wants PULSE now, address given → ship now.
     if (["replied", "contacted"].includes(c.stage) && shipping && wantsPulseNow) {
-      const draft = await step.run("draft-order", () => shopifyDraftOrder(
-        process.env.PULSE_SEEDING_VARIANT_ID!,
-        shipping,
-        `PULSE seeding — @${c.handle} — Tier ${c.tier}`));
+      const draft = await step.run("draft-order", () => shopifyDraftOrder({
+        variantId: process.env.PULSE_SEEDING_VARIANT_ID!, shipping,
+        creatorId: c.id, handle: c.handle, tier: c.tier,
+      }));
       await step.run("save", () => db.update(creators).set({
         shopifyDraftOrderId: String((draft as any).draft_order.id), stage: "onboarded",
         ...(igNorm ? { igHandle: igNorm } : {}),

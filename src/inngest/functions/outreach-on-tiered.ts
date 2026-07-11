@@ -20,8 +20,10 @@ export const outreachOnTiered = inngest.createFunction(
     const disc = await step.run("shopify-code", () => shopifyCreateDiscount(code));
     if (shipping) {
       // Address already on file (they filled the form) — skip the invite, ship now.
-      const draft = await step.run("draft-order", () => shopifyDraftOrder(
-        process.env.PULSE_SEEDING_VARIANT_ID!, shipping, `PULSE seeding — @${c.handle} — Tier ${c.tier}`));
+      const draft = await step.run("draft-order", () => shopifyDraftOrder({
+        variantId: process.env.PULSE_SEEDING_VARIANT_ID!, shipping,
+        creatorId: c.id, handle: c.handle, tier: c.tier,
+      }));
       await step.run("save", async () => {
         await db.update(creators).set({
           discountCode: code, shopifyDraftOrderId: String((draft as any).draft_order.id),
