@@ -90,7 +90,15 @@ export const creators = pgTable(
     source: creatorSourceEnum("source").notNull().default("manual"),
     modashId: text("modash_id"),
     modashLastEnrichedAt: timestamp("modash_last_enriched_at", { withTimezone: true }),
-    status: creatorStatusEnum("status").notNull().default("prospect"),
+    /**
+     * DEPRECATED legacy CRM status. `stage` is the sole authoritative lifecycle
+     * field (see lib/lifecycle.ts). Retained as a nullable, non-authoritative
+     * column for one release so a rollback can still read historical values;
+     * physical removal of the column + `creator_status` enum is a documented
+     * follow-up, blocked only by `campaign_creators.stage` (mistyped with the
+     * same enum). No code reads or writes this for lifecycle decisions.
+     */
+    status: creatorStatusEnum("status"),
     notes: text("notes"),
     // ---- PULSE campaign module (sourcing → HITL tiering → outreach → fulfillment) ----
     avgViews: integer("avg_views"),
@@ -486,3 +494,47 @@ export const payouts = pgTable("payouts", {
   approvedBy: text("approved_by"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/* ===========================================================================
+ * provisioning_claims — database-level mutual exclusion for gift provisioning.
+ *
+ * Shopify draft-order create has no native idempotency key, and Inngest delivers
+ * `creator.tiered` / `tally/intake.submitted` at-least-once. The `note_attributes`
+ * / tags marker (`pulse-gift-<creatorId>`) is defense-in-depth only. This table
+ * is the authoritative guard: a worker atomically INSERTs a claim
+ * (creatorId + giftKey unique) BEFORE any Shopify side effect. `ON CONFLICT DO
+ * NOTHING` means exactly one concurrent worker wins the row; losers see zero
+ * rows returned and abort. A `failed` claim can be retried (attempts++), while a
+ * `completed` claim is terminal — the gift shipped once.
+ * ========================================================================= */
+export const provisioningClaims = pgTable(
+  "provisioning_claims",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    creatorId: uuid("creator_id")
+      .notNull()
+      .references(() => creators.id, { onDelete: "cascade" }),
+    giftKey: text("gift_key").notNull(), // e.g. pulse-gift-<creatorId>
+    status: text("status").notNull().default("claimed"), // claimed | completed | failed
+    attempts: integer("attempts").notNull().default(1),
+    draftOrderId: text("draft_order_id"),
+    discountCode: text("discount_code"),
+    lastError: text("last_error"),
+    claimedAt: timestamp("claimed_at", { withTimezone: true }).notNull().defaultNow(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => ({
+    creatorGiftUnique: uniqueIndex("provisioning_claims_creator_gift_unique").on(
+      t.creatorId,
+      t.giftKey,
+    ),
+  }),
+);
+
+export const provisioningClaimsRelations = relations(provisioningClaims, ({ one }) => ({
+  creator: one(creators, { fields: [provisioningClaims.creatorId], references: [creators.id] }),
+}));
