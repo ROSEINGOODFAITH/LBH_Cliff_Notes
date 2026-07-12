@@ -79,14 +79,59 @@ export async function shopifyCreateDiscount(code: string) {
   }));
 }
 
-export async function shopifyDraftOrder(variantId: string, shipping: Record<string, string>, note: string) {
-  if (MOCK) return { draft_order: { id: "mock-" + Date.now() } };
+// Gift seeding is a 100% "gift" — the creator pays nothing. We do this with an
+// order-level applied_discount at 100% (percentage) rather than a $0 line item,
+// so the line keeps the variant's real price and the order shows the gifted
+// value for reporting. The discount carries a human-readable title/reason.
+export const GIFT_DISCOUNT_TITLE = "LBH Creator Gift";
+export const GIFT_DISCOUNT_DESCRIPTION = "Influencer seeding — 100% gifted";
+
+// Deterministic per-creator reference stamped on tags + note_attributes. Shopify
+// REST draft-order create has NO native idempotency key, so this is the durable
+// external marker that lets us (and a human) detect/dedupe a re-created order.
+export const giftIdempotencyKey = (creatorId: string) => `pulse-gift-${creatorId}`;
+
+export interface GiftDraftOrderInput {
+  variantId: string;
+  shipping: Record<string, string>;
+  creatorId: string;
+  handle: string;
+  tier?: string | null;
+  note?: string;
+}
+
+// Pure builder (no I/O) so the payload shape is unit-testable without a network.
+export function buildGiftDraftOrderPayload(input: GiftDraftOrderInput) {
+  const key = giftIdempotencyKey(input.creatorId);
+  const note = input.note ?? `PULSE seeding — @${input.handle} — Tier ${input.tier ?? "?"}`;
+  return {
+    draft_order: {
+      line_items: [{ variant_id: Number(input.variantId), quantity: 1 }],
+      // Order-level 100% discount → total is $0 while the line keeps full price.
+      applied_discount: {
+        title: GIFT_DISCOUNT_TITLE,
+        description: GIFT_DISCOUNT_DESCRIPTION,
+        value_type: "percentage",
+        value: "100.0",
+      },
+      shipping_address: input.shipping,
+      note,
+      tags: `pulse-seeding, ${key}`,
+      note_attributes: [
+        { name: "pulse_creator_id", value: input.creatorId },
+        { name: "pulse_idempotency_key", value: key },
+        { name: "pulse_reason", value: GIFT_DISCOUNT_DESCRIPTION },
+      ],
+    },
+  };
+}
+
+export async function shopifyDraftOrder(input: GiftDraftOrderInput) {
+  const payload = buildGiftDraftOrderPayload(input);
+  if (MOCK) return { draft_order: { id: "mock-" + Date.now(), ...payload.draft_order } };
   return j(await fetch(`${SHOP()}/draft_orders.json`, {
     method: "POST", headers: shopHeaders(),
-    body: JSON.stringify({ draft_order: {
-      line_items: [{ variant_id: Number(variantId), quantity: 1 }],
-      shipping_address: shipping, note, tags: "pulse-seeding",
-    }}),
+    body: JSON.stringify(payload),
   }));
 }
 

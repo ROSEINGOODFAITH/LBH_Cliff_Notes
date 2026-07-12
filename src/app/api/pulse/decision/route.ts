@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { creators, decisions } from "@/db/schema";
 import { extractFeatures, suggestedRateUsd } from "@/lib/model";
@@ -18,14 +18,32 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "no email on file — creator can't enter outreach" }, { status: 409 });
 
   const features = extractFeatures(c);
-  await db.insert(decisions).values({ creatorId, action, features });
-  await inngest.send({ name: "decision.recorded", data: { creatorId, action, features } });
 
+  // Atomically claim the review so a double-tap (two POSTs both reading
+  // stage='review') can't emit `creator.tiered` twice — which would place a
+  // duplicate free gift order. `tier IS NULL` is the claim token for tiering;
+  // moving stage off 'review' is the claim for a reject. If nothing is claimed,
+  // someone already decided.
   if (action === "reject") {
-    await db.update(creators).set({ stage: "rejected", updatedAt: new Date() }).where(eq(creators.id, creatorId));
+    const claimed = await db
+      .update(creators)
+      .set({ stage: "rejected", updatedAt: new Date() })
+      .where(and(eq(creators.id, creatorId), eq(creators.stage, "review")))
+      .returning({ id: creators.id });
+    if (!claimed.length) return NextResponse.json({ error: "already decided" }, { status: 409 });
   } else {
     const tier = action === "tier_a" ? "A" : "B";
-    await db.update(creators).set({ tier, ...(tier === "A" ? { rateUsd: suggestedRateUsd(c.avgViews) } : {}), updatedAt: new Date() }).where(eq(creators.id, creatorId));
+    const claimed = await db
+      .update(creators)
+      .set({ tier, ...(tier === "A" ? { rateUsd: suggestedRateUsd(c.avgViews) } : {}), updatedAt: new Date() })
+      .where(and(eq(creators.id, creatorId), eq(creators.stage, "review"), isNull(creators.tier)))
+      .returning({ id: creators.id });
+    if (!claimed.length) return NextResponse.json({ error: "already decided" }, { status: 409 });
+  }
+
+  await db.insert(decisions).values({ creatorId, action, features });
+  await inngest.send({ name: "decision.recorded", data: { creatorId, action, features } });
+  if (action !== "reject") {
     await inngest.send({ name: "creator.tiered", data: { creatorId } });
   }
   return NextResponse.json({ ok: true });

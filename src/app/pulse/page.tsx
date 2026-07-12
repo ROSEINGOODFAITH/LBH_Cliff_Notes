@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 
 /* PULSE — one screen: what needs you, what's moving, add more.
  * Mental model: a conveyor belt that stops at your desk twice —
@@ -237,7 +238,7 @@ export default function PulsePage() {
 
       <header style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", padding: "28px 0 16px", borderBottom: "1px solid oklch(0.88 0.01 90)", flexWrap: "wrap", gap: 16 }}>
         <div>
-          <div style={S.mono}>LBH CLIFF NOTES</div>
+          <Link href="/" style={{ ...S.mono, ...S.muted, textDecoration: "none" }}>← LBH CLIFF NOTES</Link>
           <h1 style={{ ...S.serif, fontSize: "clamp(28px,4vw,40px)", margin: "2px 0 0" }}>PULSE</h1>
         </div>
         {dash && (
