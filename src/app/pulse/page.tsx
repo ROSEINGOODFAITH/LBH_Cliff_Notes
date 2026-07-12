@@ -1,34 +1,32 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
+import { ExternalLink } from "lucide-react";
+import { AppNav } from "@/components/app-nav";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input, fieldClass } from "@/components/ui/input";
+import { StageBadge } from "@/components/stage-badge";
+import { cn } from "@/lib/utils";
 
 /* PULSE — one screen: what needs you, what's moving, add more.
  * Mental model: a conveyor belt that stops at your desk twice —
  * once to ask "in or out?", once to ask "pay them?". */
-const S: any = {
-  page: { fontFamily: "'Geist','Helvetica Neue',sans-serif", background: "oklch(0.975 0.004 90)", color: "oklch(0.22 0.01 90)", minHeight: "100vh", padding: "0 clamp(16px,4vw,48px) 64px", letterSpacing: "-0.01em" },
-  serif: { fontFamily: "'Instrument Serif',Georgia,serif", fontStyle: "italic", fontWeight: 400 },
-  mono: { fontFamily: "'Geist Mono',ui-monospace,monospace", fontSize: 11, letterSpacing: "0.02em" },
-  btn: { border: "1px solid oklch(0.85 0.01 90)", background: "white", borderRadius: 8, padding: "7px 14px", fontSize: 13, cursor: "pointer", fontFamily: "inherit" },
-  card: { padding: "28px 32px", background: "white", borderRadius: 16, boxShadow: "0 1px 2px oklch(0 0 0/.05), 0 8px 32px oklch(0 0 0/.06)" },
-  muted: { color: "oklch(0.55 0.01 90)" },
-};
-const ACTIVE = { background: "oklch(0.25 0.02 90)", color: "white", border: "1px solid oklch(0.25 0.02 90)" };
-const PRIMARY = { background: "oklch(0.25 0.02 90)", color: "white", border: "none", fontWeight: 600 };
 
-const profileUrl = (c: any) => c?.primaryPlatform === "instagram"
-  ? `https://www.instagram.com/${c.handle}`
-  : `https://www.tiktok.com/@${c.handle}`;
+const profileUrl = (c: any) =>
+  c?.primaryPlatform === "instagram"
+    ? `https://www.instagram.com/${c.handle}`
+    : `https://www.tiktok.com/@${c.handle}`;
 
-/* The belt: plain-word stations over internal stages. */
+/* The belt: plain-word stations over internal stages. `stage` is the canonical
+ * stage a station maps to, so StageBadge stays consistent with the rest of the app. */
 const BELT = [
-  { key: "sourced", label: "Found", auto: "We pull their profile and rank them for you — nothing to do here." },
-  { key: "review", label: "Your call", auto: "Waiting on you — decide at the top of this page." },
-  { key: "contacted", label: "Invited", auto: "Invite email sent. We watch for their reply." },
-  { key: "replied", label: "Replied", auto: "They have the address form. When it comes back, shipping starts." },
-  { key: "shipping", label: "Shipping", auto: "Order placed. We check tracking every hour and email them when it ships." },
-  { key: "posted", label: "Posted", auto: "Post is live. Gifts finish here; paid reviews come to you for payment approval." },
-  { key: "paid", label: "Done", auto: "Finished and counted toward the goal." },
+  { key: "sourced", stage: "sourced", label: "Found", auto: "We pull their profile and rank them for you — nothing to do here." },
+  { key: "review", stage: "review", label: "Your call", auto: "Waiting on you — decide at the top of this page." },
+  { key: "contacted", stage: "contacted", label: "Invited", auto: "Invite email sent. We watch for their reply." },
+  { key: "replied", stage: "replied", label: "Replied", auto: "They have the address form. When it comes back, shipping starts." },
+  { key: "shipping", stage: "shipped", label: "Shipping", auto: "Order placed. We check tracking every hour and email them when it ships." },
+  { key: "posted", stage: "posted", label: "Posted", auto: "Post is live. Gifts finish here; paid reviews come to you for payment approval." },
+  { key: "paid", stage: "paid", label: "Done", auto: "Finished and counted toward the goal." },
 ] as const;
 
 /* Model features, in plain words (shown only inside "How ranking works"). */
@@ -56,13 +54,14 @@ export default function PulsePage() {
   const [importMode, setImportMode] = useState<"prospects" | "contacts">("prospects");
   const [importPlatform, setImportPlatform] = useState<"tiktok" | "instagram">("tiktok");
   const [contactTier, setContactTier] = useState<"B" | "A">("B");
+  const [loading, setLoading] = useState(true);
 
   const load = async () => {
     const [q, d] = await Promise.all([
       fetch("/api/pulse/queue").then(r => r.json()),
       fetch("/api/pulse/dashboard").then(r => r.json()),
     ]);
-    setQueue(q); setDash(d); setStationRows({}); setOpenStation(null);
+    setQueue(q); setDash(d); setStationRows({}); setOpenStation(null); setLoading(false);
   };
   useEffect(() => { load(); }, []);
 
@@ -222,198 +221,322 @@ export default function PulsePage() {
     ["Email", next.email],
   ].filter(([, v]) => v != null && v !== "") : [];
 
-  const Bar = ({ label, g }: any) => (
-    <div style={{ minWidth: 130 }}>
-      <div style={{ ...S.mono, ...S.muted, display: "flex", justifyContent: "space-between" }}><span>{label}</span><span>{g.current}/{g.target}</span></div>
-      <div style={{ height: 4, background: "oklch(0.9 0.008 90)", borderRadius: 2, marginTop: 4 }}>
-        <div style={{ height: "100%", width: Math.min(100, g.current / g.target * 100) + "%", background: "oklch(0.35 0.03 90)", borderRadius: 2 }} />
+  const Goal = ({ label, g }: { label: string; g: { current: number; target: number } }) => (
+    <div className="min-w-[120px] flex-1">
+      <div className="flex items-center justify-between text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">
+        <span>{label}</span>
+        <span className="tnum">{g.current}/{g.target}</span>
       </div>
-    </div>);
+      <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-secondary">
+        <div className="h-full rounded-full bg-primary transition-[width] duration-500" style={{ width: Math.min(100, (g.current / g.target) * 100) + "%" }} />
+      </div>
+    </div>
+  );
 
   return (
-    <div style={S.page}>
-      <link rel="preconnect" href="https://fonts.googleapis.com" />
-      <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
-      <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400..700&family=Geist+Mono:wght@400..600&display=swap" rel="stylesheet" />
-
-      <header style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", padding: "28px 0 16px", borderBottom: "1px solid oklch(0.88 0.01 90)", flexWrap: "wrap", gap: 16 }}>
-        <div>
-          <Link href="/" style={{ ...S.mono, ...S.muted, textDecoration: "none" }}>← LBH CLIFF NOTES</Link>
-          <h1 style={{ ...S.serif, fontSize: "clamp(28px,4vw,40px)", margin: "2px 0 0" }}>PULSE</h1>
+    <div className="min-h-screen">
+      <AppNav active="/pulse" email={dash?.teamEmail} />
+      <main className="container space-y-6 py-8">
+        {/* Header — title + goals */}
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-[-0.02em]">Pulse</h1>
+            <p className="mt-0.5 text-sm text-muted-foreground">What needs you, what&apos;s moving, and where to add more.</p>
+          </div>
+          {dash && (
+            <div className="flex w-full max-w-sm gap-4 sm:w-auto">
+              <Goal label="Gifted posts" g={dash.goal.organic} />
+              <Goal label="Paid reviews" g={dash.goal.paid} />
+            </div>
+          )}
         </div>
-        {dash && (
-          <div style={{ display: "flex", gap: 20 }}>
-            <Bar label="Gifted posts" g={dash.goal.organic} />
-            <Bar label="Paid reviews" g={dash.goal.paid} />
-          </div>)}
-      </header>
 
-      {dash?.health?.modashPaused && (
-        <div style={{ margin: "16px 0 0", padding: "10px 16px", background: "oklch(0.95 0.02 85)", border: "1px solid oklch(0.85 0.04 85)", borderRadius: 10, fontSize: 13 }}>
-          Profile data is paused — Modash hasn&apos;t switched on our access to their data yet, so new creators arrive without stats. CSV imports still bring full data.
-        </div>)}
+        {dash?.health?.modashPaused && (
+          <div className="rounded-cell border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning">
+            Profile data is paused — Modash hasn&apos;t switched on our access to their data yet, so new creators arrive without stats. CSV imports still bring full data.
+          </div>
+        )}
 
-      {flash && <div style={{ ...S.mono, padding: "12px 0 0", color: flashKind === "err" ? "oklch(0.5 0.15 25)" : "oklch(0.45 0.1 150)" }}>{flash}</div>}
+        {flash && (
+          <div
+            role="status"
+            data-testid="pulse-flash"
+            className={cn("text-sm font-medium", flashKind === "err" ? "text-destructive" : "text-success")}
+          >
+            {flash}
+          </div>
+        )}
 
-      {/* ------------------------------ needs you ------------------------------ */}
-      <section style={{ maxWidth: 720, margin: "36px auto 0" }}>
-        <p style={{ ...S.serif, fontSize: "clamp(20px,2.6vw,26px)", margin: 0 }}>{statusLine}</p>
+        {/* ------------------------------ needs you ------------------------------ */}
+        <section className="mx-auto w-full max-w-2xl space-y-4">
+          <p className="text-lg font-medium tracking-[-0.01em]">{statusLine}</p>
 
-        {payout && (
-          <div style={{ ...S.card, marginTop: 20 }}>
-            <div style={{ fontSize: 18, fontWeight: 600 }}>
-              Pay <a href={profileUrl(payout)} target="_blank" rel="noreferrer" style={{ color: "inherit" }}>@{payout.handle}</a> ${payout.amountUsd}
-            </div>
-            <p style={{ fontSize: 14, margin: "8px 0 0", ...S.muted }}>
-              {payout.half === "signing" ? "First half — agreed when they said yes." : "Final half — their post is live."}
-              {payout.half === "completion" && (payout.disclosureOk
-                ? " #ad disclosure checked ✓."
-                : <> <b>#ad disclosure not confirmed</b> — look before you approve.</>)}
-              {payout.postUrl && <> <a href={payout.postUrl} target="_blank" rel="noreferrer">View the post →</a></>}
-            </p>
-            <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
-              <button style={{ ...S.btn, ...PRIMARY, padding: "10px 18px" }} onClick={() => approvePayout(payout)}>Approve</button>
-              <button style={S.btn} onClick={() => setSkippedPayouts(s => [...s, payout.id])}>Not yet</button>
-            </div>
-            <p style={{ fontSize: 12, ...S.muted, marginTop: 8 }}>Approving records your sign-off — money only moves when you send it in your payment app.</p>
-          </div>)}
+          {payout && (
+            <Card data-testid="pulse-payout-card">
+              <CardContent className="p-6">
+                <div className="text-lg font-semibold">
+                  Pay{" "}
+                  <a href={profileUrl(payout)} target="_blank" rel="noreferrer" className="text-primary underline-offset-2 hover:underline">
+                    @{payout.handle}
+                  </a>{" "}
+                  ${payout.amountUsd}
+                </div>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  {payout.half === "signing" ? "First half — agreed when they said yes." : "Final half — their post is live."}
+                  {payout.half === "completion" && (payout.disclosureOk
+                    ? " #ad disclosure checked ✓."
+                    : <> <strong className="text-warning">#ad disclosure not confirmed</strong> — look before you approve.</>)}
+                  {payout.postUrl && (
+                    <>
+                      {" "}
+                      <a href={payout.postUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline">
+                        View the post <ExternalLink className="size-3" />
+                      </a>
+                    </>
+                  )}
+                </p>
+                <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                  <Button size="lg" className="min-h-[44px]" data-testid="pulse-payout-approve" onClick={() => approvePayout(payout)}>Approve</Button>
+                  <Button size="lg" variant="outline" className="min-h-[44px]" onClick={() => setSkippedPayouts(s => [...s, payout.id])}>Not yet</Button>
+                </div>
+                <p className="mt-3 text-xs text-muted-foreground">Approving records your sign-off — money only moves when you send it in your payment app.</p>
+              </CardContent>
+            </Card>
+          )}
 
-        {!payout && next && (
-          <div style={{ ...S.card, marginTop: 20 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 8 }}>
-              <a href={profileUrl(next)} target="_blank" rel="noreferrer"
-                style={{ fontSize: 22, fontWeight: 600, color: "inherit", textDecoration: "none", borderBottom: "2px solid oklch(0.78 0.02 90)" }}>
-                @{next.handle} ↗
-              </a>
-              <span style={{ ...S.mono, ...S.muted }}>{(next.primaryPlatform ?? "tiktok").toUpperCase()}{next.displayName ? ` · ${next.displayName}` : ""}</span>
-            </div>
-            {cardStats.length > 0 ? (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(130px,1fr))", gap: "14px 20px", margin: "18px 0 4px", fontSize: 13 }}>
-                {cardStats.map(([k, v]) => (
-                  <div key={String(k)}><div style={{ ...S.mono, ...S.muted }}>{String(k).toUpperCase()}</div><div style={{ fontWeight: 500, marginTop: 2, overflowWrap: "anywhere" }}>{v}</div></div>))}
-              </div>
-            ) : (
-              <p style={{ fontSize: 13, ...S.muted, margin: "16px 0 4px" }}>No stats yet — open their profile above and judge the content.</p>
-            )}
-            {hasAddress && (
-              <p style={{ fontSize: 13, margin: "12px 0 0", fontWeight: 500 }}>
-                Filled your address form ✓ — approving ships to them right away.
-              </p>)}
-            {(next as any)?.rawModash?.formChoices && (
-              <p style={{ fontSize: 13, margin: "8px 0 0" }}>
-                They asked for: <b>{(next as any).rawModash.formChoices}</b>
-              </p>)}
-            {!next.email && (
-              <div style={{ display: "flex", gap: 8, margin: "12px 0 0", alignItems: "center" }}>
-                <input value={emailDraft} onChange={(e) => setEmailDraft(e.target.value)}
-                  placeholder="their email (check the profile bio)"
-                  style={{ flex: 1, border: "1px solid oklch(0.85 0.01 90)", borderRadius: 8, padding: "8px 10px", fontSize: 13, fontFamily: "inherit" }} />
-                <button style={S.btn} onClick={saveEmail}>Save</button>
-              </div>)}
-            <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
-              <button disabled={!canDecide} style={{ ...S.btn, ...PRIMARY, flex: 1, padding: 12, opacity: canDecide ? 1 : 0.4, cursor: canDecide ? "pointer" : "not-allowed" }}
-                onClick={() => decide(next, "tier_a")}>Pay for a review</button>
-              <button disabled={!canDecide} style={{ ...S.btn, flex: 1, padding: 12, opacity: canDecide ? 1 : 0.4, cursor: canDecide ? "pointer" : "not-allowed" }}
-                onClick={() => decide(next, "tier_b")}>Send a gift</button>
-              <button style={{ ...S.btn, padding: "12px 18px", color: "oklch(0.5 0.15 25)" }} onClick={() => decide(next, "reject")}>Pass</button>
-            </div>
-            {!canDecide && (
-              <p style={{ fontSize: 12, color: "oklch(0.5 0.12 25)", marginTop: 8 }}>
-                No email — we can&apos;t invite them. Paste one above, or pass.
-              </p>)}
-            {canDecide && <p style={{ fontSize: 12, ...S.muted, marginTop: 8 }}>Paid review: the rate is agreed after they accept — nothing is owed today.</p>}
-            {queue.length > 1 && <p style={{ fontSize: 12, ...S.muted, marginTop: 12 }}>{queue.length - 1} more after this one.</p>}
-          </div>)}
-
-        {!payout && !next && dash && (
-          <p style={{ fontSize: 14, ...S.muted, marginTop: 16 }}>New creators arrive each morning, or add some below.</p>)}
-      </section>
-
-      {/* ------------------------------ the belt ------------------------------ */}
-      <section style={{ maxWidth: 860, margin: "48px auto 0" }}>
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-          {BELT.map((st, i) => (
-            <div key={st.key} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <button onClick={() => openBelt(st.key)}
-                style={{ ...S.btn, ...(openStation === st.key ? ACTIVE : {}), padding: "8px 12px" }}>
-                {st.label} <b style={{ marginLeft: 4 }}>{beltCount(st.key)}</b>
-              </button>
-              {i < BELT.length - 1 && <span style={{ ...S.muted, fontSize: 12 }}>→</span>}
-            </div>))}
-        </div>
-        {openStation && (
-          <div style={{ ...S.card, marginTop: 12, padding: "18px 24px" }}>
-            <p style={{ fontSize: 13, ...S.muted, margin: "0 0 10px" }}>{BELT.find(b => b.key === openStation)?.auto}</p>
-            {(stationRows[openStation] ?? []).length === 0
-              ? <p style={{ fontSize: 13, ...S.muted, margin: 0 }}>No one here right now.</p>
-              : (stationRows[openStation] ?? []).map((c: any) => (
-                <div key={c.id} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid oklch(0.94 0.004 90)", fontSize: 13 }}>
-                  <a href={profileUrl(c)} target="_blank" rel="noreferrer" style={{ color: "inherit" }}>@{c.handle}</a>
-                  <span style={{ ...S.mono, ...S.muted }}>
-                    {c.postUrl ? "posted" : c.trackingNumber ? `tracking ${String(c.trackingNumber).slice(0, 14)}` : c.email ? "" : "no email"}
+          {!payout && next && (
+            <Card data-testid="pulse-decision-card">
+              <CardContent className="p-6">
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <a
+                    href={profileUrl(next)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-xl font-semibold text-foreground underline-offset-4 hover:underline"
+                  >
+                    @{next.handle} <ExternalLink className="size-4 text-muted-foreground" />
+                  </a>
+                  <span className="text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">
+                    {(next.primaryPlatform ?? "tiktok").toUpperCase()}{next.displayName ? ` · ${next.displayName}` : ""}
                   </span>
-                </div>))}
-          </div>)}
-      </section>
+                </div>
 
-      {/* ------------------------------ add creators ------------------------------ */}
-      <section style={{ maxWidth: 720, margin: "40px auto 0" }}>
-        {!showAdd && <button style={{ ...S.btn, padding: "10px 18px" }} onClick={() => setShowAdd(true)}>Add creators</button>}
-        {showAdd && (
-          <div style={{ ...S.card, padding: "20px 24px" }}>
-            <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
-              <button style={{ ...S.btn, ...(importMode === "prospects" ? ACTIVE : {}) }} onClick={() => setImportMode("prospects")}>New people to consider</button>
-              <button style={{ ...S.btn, ...(importMode === "contacts" ? ACTIVE : {}) }} onClick={() => setImportMode("contacts")}>People I&apos;m already talking to</button>
-            </div>
-            {importMode === "prospects" && (
-              <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-                <button style={{ ...S.btn, ...(importPlatform === "tiktok" ? ACTIVE : {}) }} onClick={() => setImportPlatform("tiktok")}>TikTok</button>
-                <button style={{ ...S.btn, ...(importPlatform === "instagram" ? ACTIVE : {}) }} onClick={() => setImportPlatform("instagram")}>Instagram</button>
-              </div>)}
-            {importMode === "contacts" && (
-              <div style={{ display: "flex", gap: 8, marginBottom: 10, alignItems: "center" }}>
-                <span style={{ fontSize: 13, ...S.muted }}>They&apos;ll get</span>
-                <button style={{ ...S.btn, ...(contactTier === "B" ? ACTIVE : {}) }} onClick={() => setContactTier("B")}>a gift</button>
-                <button style={{ ...S.btn, ...(contactTier === "A" ? ACTIVE : {}) }} onClick={() => setContactTier("A")}>a paid review</button>
-              </div>)}
-            <textarea value={importText} onChange={(e) => setImportText(e.target.value)} rows={5}
-              placeholder={importMode === "contacts"
-                ? "Jane Doe, jane@example.com — one person per line"
-                : "@handles, profile links, or your Modash CSV export — one per line"}
-              style={{ width: "100%", boxSizing: "border-box", border: "1px solid oklch(0.85 0.01 90)", borderRadius: 8, padding: 10, fontSize: 13, fontFamily: "'Geist Mono',ui-monospace,monospace" }} />
-            <input type="file" accept=".csv,.tsv,.txt" style={{ fontSize: 12, marginTop: 8, display: "block" }}
-              onChange={(e) => { const f = e.target.files?.[0]; if (!f) return; const rd = new FileReader(); rd.onload = () => setImportText(String(rd.result ?? "")); rd.readAsText(f); }} />
-            <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
-              <button style={{ ...S.btn, ...PRIMARY, opacity: importing ? 0.6 : 1 }} disabled={importing} onClick={runImport}>
-                {importing ? "Adding…" : "Add"}
-              </button>
-              <button style={S.btn} onClick={() => setShowAdd(false)}>Cancel</button>
-            </div>
-            <p style={{ fontSize: 12, ...S.muted, marginTop: 8 }}>
-              {importMode === "contacts"
-                ? "They skip the cold invite. Once they fill in your address form, shipping takes over automatically."
-                : "They join the belt at Found and reach “Your call” once ranked."}
-            </p>
-          </div>)}
-      </section>
+                {cardStats.length > 0 ? (
+                  <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
+                    {cardStats.map(([k, v]) => (
+                      <div key={String(k)}>
+                        <div className="text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">{String(k)}</div>
+                        <div className="mt-1 break-words text-sm font-medium tnum">{v}</div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-4 text-sm text-muted-foreground">No stats yet — open their profile above and judge the content.</p>
+                )}
 
-      {/* ------------------------------ how ranking works ------------------------------ */}
-      <section style={{ maxWidth: 720, margin: "40px auto 0" }}>
-        <button onClick={() => setShowRanking(v => !v)}
-          style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, ...S.muted, padding: 0, textDecoration: "underline", fontFamily: "inherit" }}>
-          How ranking works
-        </button>
-        {showRanking && (
-          <div style={{ marginTop: 10, fontSize: 13, ...S.muted }}>
-            <p style={{ margin: "0 0 8px" }}>
-              Creators are ranked by a simple score that learns from every call you make — {dash?.model?.decisionCount ?? 0} so far. Passing on someone teaches it just as much as saying yes.
-            </p>
-            {topWeights.filter(([k]) => FEATURE_NAMES[k]).map(([k, v]) => (
-              <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid oklch(0.94 0.004 90)" }}>
-                <span>{FEATURE_NAMES[k]}</span>
-                <span style={{ ...S.mono, color: v > 0 ? "oklch(0.45 0.1 150)" : "oklch(0.5 0.15 25)" }}>{v > 0 ? "helps" : "hurts"}</span>
-              </div>))}
-          </div>)}
-      </section>
-    </div>);
+                {hasAddress && (
+                  <p className="mt-3 text-sm font-medium text-success">Filled your address form ✓ — approving ships to them right away.</p>
+                )}
+                {(next as any)?.rawModash?.formChoices && (
+                  <p className="mt-2 text-sm">They asked for: <strong>{(next as any).rawModash.formChoices}</strong></p>
+                )}
+
+                {!next.email && (
+                  <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <Input
+                      value={emailDraft}
+                      onChange={(e) => setEmailDraft(e.target.value)}
+                      placeholder="their email (check the profile bio)"
+                      className="h-11 flex-1 sm:h-9"
+                      data-testid="pulse-email-input"
+                    />
+                    <Button variant="outline" className="min-h-[44px] sm:min-h-0" onClick={saveEmail}>Save</Button>
+                  </div>
+                )}
+
+                <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                  <Button
+                    disabled={!canDecide}
+                    size="lg"
+                    className="min-h-[44px] flex-1"
+                    data-testid="pulse-decide-tier-a"
+                    onClick={() => decide(next, "tier_a")}
+                  >
+                    Pay for a review
+                  </Button>
+                  <Button
+                    disabled={!canDecide}
+                    size="lg"
+                    variant="secondary"
+                    className="min-h-[44px] flex-1"
+                    data-testid="pulse-decide-tier-b"
+                    onClick={() => decide(next, "tier_b")}
+                  >
+                    Send a gift
+                  </Button>
+                  <Button
+                    size="lg"
+                    variant="ghost"
+                    className="min-h-[44px] text-destructive hover:bg-destructive/10 hover:text-destructive"
+                    data-testid="pulse-decide-reject"
+                    onClick={() => decide(next, "reject")}
+                  >
+                    Pass
+                  </Button>
+                </div>
+
+                {!canDecide && (
+                  <p className="mt-2 text-xs text-destructive">No email — we can&apos;t invite them. Paste one above, or pass.</p>
+                )}
+                {canDecide && (
+                  <p className="mt-2 text-xs text-muted-foreground">Paid review: the rate is agreed after they accept — nothing is owed today.</p>
+                )}
+                {queue.length > 1 && (
+                  <p className="mt-3 text-xs text-muted-foreground">{queue.length - 1} more after this one.</p>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {!payout && !next && dash && (
+            <p className="text-sm text-muted-foreground">New creators arrive each morning, or add some below.</p>
+          )}
+          {loading && !dash && <p className="text-sm text-muted-foreground">Loading…</p>}
+        </section>
+
+        {/* ------------------------------ the belt ------------------------------ */}
+        <section className="mx-auto w-full max-w-3xl space-y-3">
+          <div className="flex flex-wrap items-center gap-2" data-testid="pulse-belt">
+            {BELT.map((st, i) => (
+              <div key={st.key} className="flex items-center gap-2">
+                <Button
+                  variant={openStation === st.key ? "default" : "outline"}
+                  className="min-h-[44px]"
+                  data-testid={`pulse-station-${st.key}`}
+                  onClick={() => openBelt(st.key)}
+                >
+                  {st.label} <span className="ml-1 font-semibold tnum">{beltCount(st.key)}</span>
+                </Button>
+                {i < BELT.length - 1 && <span className="text-xs text-muted-foreground">→</span>}
+              </div>
+            ))}
+          </div>
+
+          {openStation && (
+            <Card data-testid="pulse-station-rows">
+              <CardContent className="p-5">
+                <p className="mb-3 text-sm text-muted-foreground">{BELT.find(b => b.key === openStation)?.auto}</p>
+                {(stationRows[openStation] ?? []).length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No one here right now.</p>
+                ) : (
+                  <div className="divide-y divide-border/60">
+                    {(stationRows[openStation] ?? []).map((c: any) => (
+                      <div key={c.id} className="flex items-center justify-between gap-3 py-2 text-sm">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <a href={profileUrl(c)} target="_blank" rel="noreferrer" className="truncate text-foreground hover:text-primary hover:underline">
+                            @{c.handle}
+                          </a>
+                          <StageBadge stage={c.stage} />
+                        </div>
+                        <span className="shrink-0 text-xs text-muted-foreground">
+                          {c.postUrl ? "posted" : c.trackingNumber ? `tracking ${String(c.trackingNumber).slice(0, 14)}` : c.email ? "" : "no email"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+        </section>
+
+        {/* ------------------------------ add creators ------------------------------ */}
+        <section className="mx-auto w-full max-w-2xl">
+          {!showAdd && (
+            <Button variant="outline" className="min-h-[44px]" data-testid="pulse-add-open" onClick={() => setShowAdd(true)}>
+              Add creators
+            </Button>
+          )}
+          {showAdd && (
+            <Card data-testid="pulse-add-form">
+              <CardContent className="space-y-3 p-6">
+                <div className="flex flex-wrap gap-2">
+                  <Button variant={importMode === "prospects" ? "default" : "outline"} className="min-h-[44px]" onClick={() => setImportMode("prospects")}>New people to consider</Button>
+                  <Button variant={importMode === "contacts" ? "default" : "outline"} className="min-h-[44px]" onClick={() => setImportMode("contacts")}>People I&apos;m already talking to</Button>
+                </div>
+
+                {importMode === "prospects" && (
+                  <div className="flex flex-wrap gap-2">
+                    <Button variant={importPlatform === "tiktok" ? "default" : "outline"} className="min-h-[44px]" onClick={() => setImportPlatform("tiktok")}>TikTok</Button>
+                    <Button variant={importPlatform === "instagram" ? "default" : "outline"} className="min-h-[44px]" onClick={() => setImportPlatform("instagram")}>Instagram</Button>
+                  </div>
+                )}
+                {importMode === "contacts" && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm text-muted-foreground">They&apos;ll get</span>
+                    <Button variant={contactTier === "B" ? "default" : "outline"} className="min-h-[44px]" onClick={() => setContactTier("B")}>a gift</Button>
+                    <Button variant={contactTier === "A" ? "default" : "outline"} className="min-h-[44px]" onClick={() => setContactTier("A")}>a paid review</Button>
+                  </div>
+                )}
+
+                <textarea
+                  value={importText}
+                  onChange={(e) => setImportText(e.target.value)}
+                  rows={5}
+                  placeholder={importMode === "contacts"
+                    ? "Jane Doe, jane@example.com — one person per line"
+                    : "@handles, profile links, or your Modash CSV export — one per line"}
+                  className={cn(fieldClass, "h-auto min-h-[120px] w-full py-2 font-mono")}
+                  data-testid="pulse-import-text"
+                />
+                <input
+                  type="file"
+                  accept=".csv,.tsv,.txt"
+                  className="block text-xs text-muted-foreground file:mr-3 file:rounded-ctrl file:border file:border-border file:bg-secondary file:px-3 file:py-1.5 file:text-xs file:text-foreground hover:file:bg-accent"
+                  onChange={(e) => { const f = e.target.files?.[0]; if (!f) return; const rd = new FileReader(); rd.onload = () => setImportText(String(rd.result ?? "")); rd.readAsText(f); }}
+                />
+
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Button className="min-h-[44px]" disabled={importing} data-testid="pulse-import-submit" onClick={runImport}>
+                    {importing ? "Adding…" : "Add"}
+                  </Button>
+                  <Button variant="outline" className="min-h-[44px]" onClick={() => setShowAdd(false)}>Cancel</Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {importMode === "contacts"
+                    ? "They skip the cold invite. Once they fill in your address form, shipping takes over automatically."
+                    : "They join the belt at Found and reach “Your call” once ranked."}
+                </p>
+              </CardContent>
+            </Card>
+          )}
+        </section>
+
+        {/* ------------------------------ how ranking works ------------------------------ */}
+        <section className="mx-auto w-full max-w-2xl">
+          <button
+            onClick={() => setShowRanking(v => !v)}
+            className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+          >
+            How ranking works
+          </button>
+          {showRanking && (
+            <div className="mt-3 text-sm text-muted-foreground">
+              <p className="mb-2">
+                Creators are ranked by a simple score that learns from every call you make — {dash?.model?.decisionCount ?? 0} so far. Passing on someone teaches it just as much as saying yes.
+              </p>
+              <div className="divide-y divide-border/60">
+                {topWeights.filter(([k]) => FEATURE_NAMES[k]).map(([k, v]) => (
+                  <div key={k} className="flex items-center justify-between py-2">
+                    <span className="text-foreground">{FEATURE_NAMES[k]}</span>
+                    <span className={cn("text-xs font-medium", v > 0 ? "text-success" : "text-destructive")}>{v > 0 ? "helps" : "hurts"}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </section>
+      </main>
+    </div>
+  );
 }
