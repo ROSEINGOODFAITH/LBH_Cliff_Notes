@@ -5,6 +5,13 @@ import {
   funnelFromStages,
   stageMeta,
   STAGE_META,
+  canTransition,
+  assertTransition,
+  InvalidStageTransition,
+  advanceStage,
+  statusToStage,
+  isTerminalStage,
+  ENGAGED_STAGES,
 } from "../src/lib/lifecycle";
 
 test("isProvisioned — the gift-order idempotency guard", async (t) => {
@@ -106,4 +113,87 @@ test("stageMeta — consistent labels for every enum value", async (t) => {
       .map(([k]) => k);
     assert.deepEqual(attention, ["review"]);
   });
+});
+
+test("canTransition / assertTransition — the canonical state machine", async (t) => {
+  await t.test("allows valid forward edges", () => {
+    assert.ok(canTransition("sourced", "review"));
+    assert.ok(canTransition("review", "contacted"));
+    assert.ok(canTransition("review", "onboarded")); // direct-ship approval
+    assert.ok(canTransition("contacted", "replied"));
+    assert.ok(canTransition("onboarded", "shipped"));
+    assert.ok(canTransition("posted", "paid"));
+  });
+
+  await t.test("any non-terminal stage may churn (opt-out)", () => {
+    for (const s of ["sourced", "review", "contacted", "replied", "onboarded", "shipped", "posted"] as const) {
+      assert.ok(canTransition(s, "churned"), `${s} → churned`);
+    }
+  });
+
+  await t.test("rejects regressions and revivals", () => {
+    assert.equal(canTransition("paid", "contacted"), false);
+    assert.equal(canTransition("posted", "replied"), false);
+    assert.equal(canTransition("shipped", "onboarded"), false);
+    assert.equal(canTransition("rejected", "contacted"), false);
+    assert.equal(canTransition("churned", "sourced"), false);
+  });
+
+  await t.test("a no-op (same stage) is always valid", () => {
+    assert.ok(canTransition("paid", "paid"));
+    assert.ok(canTransition("sourced", "sourced"));
+  });
+
+  await t.test("assertTransition throws InvalidStageTransition on a bad edge", () => {
+    assert.throws(() => assertTransition("paid", "sourced"), InvalidStageTransition);
+    assert.doesNotThrow(() => assertTransition("sourced", "contacted"));
+  });
+
+  await t.test("terminal stages are exactly paid/rejected/churned", () => {
+    assert.deepEqual(
+      (["sourced", "review", "contacted", "replied", "onboarded", "shipped", "posted", "paid", "rejected", "churned"] as const)
+        .filter(isTerminalStage),
+      ["paid", "rejected", "churned"],
+    );
+  });
+});
+
+test("advanceStage — monotonic forward progress, no regressions or revivals", async (t) => {
+  await t.test("moves forward when target is further along", () => {
+    assert.equal(advanceStage("sourced", "onboarded"), "onboarded");
+    assert.equal(advanceStage("contacted", "replied"), "replied");
+  });
+
+  await t.test("never regresses a more-advanced creator", () => {
+    assert.equal(advanceStage("posted", "onboarded"), "posted");
+    assert.equal(advanceStage("replied", "contacted"), "replied");
+  });
+
+  await t.test("terminal stages are sticky and targets that are terminal are ignored", () => {
+    assert.equal(advanceStage("paid", "onboarded"), "paid");
+    assert.equal(advanceStage("churned", "onboarded"), "churned");
+    assert.equal(advanceStage("contacted", "churned"), "contacted"); // use an explicit transition for removals
+  });
+});
+
+test("statusToStage — legacy CRM status maps onto the canonical stage", async (t) => {
+  await t.test("maps every legacy value", () => {
+    assert.equal(statusToStage("prospect"), "sourced");
+    assert.equal(statusToStage("contacted"), "contacted");
+    assert.equal(statusToStage("replied"), "replied");
+    assert.equal(statusToStage("negotiating"), "replied");
+    assert.equal(statusToStage("active"), "onboarded");
+    assert.equal(statusToStage("declined"), "rejected");
+    assert.equal(statusToStage("dormant"), "churned");
+  });
+
+  await t.test("null / unknown falls back to sourced", () => {
+    assert.equal(statusToStage(null), "sourced");
+    assert.equal(statusToStage(undefined), "sourced");
+    assert.equal(statusToStage("bogus"), "sourced");
+  });
+});
+
+test("ENGAGED_STAGES — replied through paid (replaces legacy active|negotiating|replied)", () => {
+  assert.deepEqual(ENGAGED_STAGES, ["replied", "onboarded", "shipped", "posted", "paid"]);
 });

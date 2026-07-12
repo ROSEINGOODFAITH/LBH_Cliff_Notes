@@ -152,6 +152,125 @@ export function shopifyConfigured(): boolean {
   }
 }
 
+/** Local/test guard — when set, every Shopify write returns a mock, no network. */
+function isMock(): boolean {
+  try {
+    return getEnv().MOCK === "1";
+  } catch {
+    return false;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * PULSE gift seeding — the single Admin path for gift draft orders, the
+ * creator seeding discount code, and fulfillment tracking. Previously duplicated
+ * in lib/integrations.ts against a hardcoded API version with its own fetch/auth
+ * /error handling; consolidated here so there is one client, one version
+ * (SHOPIFY_API_VERSION), one retry/error surface (ShopifyError), and one MOCK
+ * short-circuit for local/test.
+ * ------------------------------------------------------------------------- */
+
+// Gift seeding is a 100% "gift" — the creator pays nothing. Modeled as an
+// order-level applied_discount at 100% (percentage) rather than a $0 line item,
+// so the line keeps the variant's real price and the order shows the gifted
+// value for reporting.
+export const GIFT_DISCOUNT_TITLE = "LBH Creator Gift";
+export const GIFT_DISCOUNT_DESCRIPTION = "Influencer seeding — 100% gifted";
+
+// Deterministic per-creator reference stamped on tags + note_attributes. Shopify
+// REST draft-order create has NO native idempotency key, so this is the durable
+// external marker (defense-in-depth alongside the provisioning_claims table).
+export const giftIdempotencyKey = (creatorId: string) => `pulse-gift-${creatorId}`;
+
+export interface GiftDraftOrderInput {
+  variantId: string;
+  shipping: Record<string, string>;
+  creatorId: string;
+  handle: string;
+  tier?: string | null;
+  note?: string;
+}
+
+export interface DraftOrderResult {
+  draft_order: { id: string | number; [k: string]: unknown };
+}
+
+// Pure builder (no I/O) so the payload shape is unit-testable without a network.
+export function buildGiftDraftOrderPayload(input: GiftDraftOrderInput) {
+  const key = giftIdempotencyKey(input.creatorId);
+  const note = input.note ?? `PULSE seeding — @${input.handle} — Tier ${input.tier ?? "?"}`;
+  return {
+    draft_order: {
+      line_items: [{ variant_id: Number(input.variantId), quantity: 1 }],
+      applied_discount: {
+        title: GIFT_DISCOUNT_TITLE,
+        description: GIFT_DISCOUNT_DESCRIPTION,
+        value_type: "percentage",
+        value: "100.0",
+      },
+      shipping_address: input.shipping,
+      note,
+      tags: `pulse-seeding, ${key}`,
+      note_attributes: [
+        { name: "pulse_creator_id", value: input.creatorId },
+        { name: "pulse_idempotency_key", value: key },
+        { name: "pulse_reason", value: GIFT_DISCOUNT_DESCRIPTION },
+      ],
+    },
+  };
+}
+
+/** Create the 100%-gifted draft order for a creator. MOCK → in-memory result. */
+export async function createGiftDraftOrder(input: GiftDraftOrderInput): Promise<DraftOrderResult> {
+  const payload = buildGiftDraftOrderPayload(input);
+  if (isMock()) {
+    return { draft_order: { id: "mock-" + Date.now(), ...payload.draft_order } };
+  }
+  return shopifyRest<DraftOrderResult>("/draft_orders.json", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+/** Mint the creator's -15% seeding discount code. MOCK → in-memory result. */
+export async function createSeedingDiscountCode(code: string): Promise<{ id: string }> {
+  if (isMock()) return { id: "mock" };
+  const pr = await shopifyRest<{ price_rule: { id: number } }>("/price_rules.json", {
+    method: "POST",
+    body: JSON.stringify({
+      price_rule: {
+        title: code,
+        target_type: "line_item",
+        target_selection: "all",
+        allocation_method: "across",
+        value_type: "percentage",
+        value: "-15.0",
+        customer_selection: "all",
+        starts_at: new Date().toISOString(),
+      },
+    }),
+  });
+  const dc = await shopifyRest<{ discount_code: { id: number } }>(
+    `/price_rules/${pr.price_rule.id}/discount_codes.json`,
+    { method: "POST", body: JSON.stringify({ discount_code: { code } }) },
+  );
+  return { id: String(dc.discount_code.id) };
+}
+
+/** Tracking number for a gift draft order once fulfilled, else null. */
+export async function getGiftFulfillmentTracking(draftOrderId: string): Promise<string | null> {
+  if (isMock()) return null;
+  const d = await shopifyRest<{ draft_order?: { order_id?: number | null } }>(
+    `/draft_orders/${draftOrderId}.json`,
+  );
+  const orderId = d.draft_order?.order_id;
+  if (!orderId) return null;
+  const f = await shopifyRest<{ fulfillments?: { tracking_number?: string | null }[] }>(
+    `/orders/${orderId}/fulfillments.json`,
+  );
+  return f.fulfillments?.[0]?.tracking_number ?? null;
+}
+
 /** Create a unique code-based percentage discount (P3). percentage is 0..1. */
 export interface DiscountResult {
   id: string;

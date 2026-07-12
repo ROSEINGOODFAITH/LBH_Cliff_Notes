@@ -10,6 +10,7 @@ import {
   type OutreachContext,
 } from "@/lib/anthropic";
 import { sendEmail, listRecentMessages, getMessage, gmailConfigured } from "@/lib/gmail";
+import { advanceStage, type CreatorStage } from "@/lib/lifecycle";
 
 export type ThreadRow = typeof outreachThreads.$inferSelect;
 export type MessageRow = typeof messages.$inferSelect;
@@ -143,7 +144,8 @@ export async function approveAndSend(threadId: string): Promise<ActionResult> {
       .update(outreachThreads)
       .set({ gmailThreadId: sent.threadId, status: "awaiting_reply", lastMessageAt: new Date() })
       .where(eq(outreachThreads.id, threadId));
-    if (c.status === "prospect") await db.update(creators).set({ status: "contacted" }).where(eq(creators.id, c.id));
+    const advanced = advanceStage(c.stage as CreatorStage, "contacted");
+    if (advanced !== c.stage) await db.update(creators).set({ stage: advanced }).where(eq(creators.id, c.id));
     await db.insert(events).values({ creatorId: c.id, type: "outreach.sent", payload: { threadId } });
     return { ok: true, message: `Sent to @${c.handle}.`, threadId };
   } catch (e) {
@@ -213,8 +215,8 @@ export async function syncReplies(): Promise<SyncResult> {
       .where(eq(outreachThreads.id, thread.id));
     await db
       .update(creators)
-      .set({ status: "replied" })
-      .where(and(eq(creators.id, thread.creatorId), eq(creators.status, "contacted")));
+      .set({ stage: "replied" })
+      .where(and(eq(creators.id, thread.creatorId), eq(creators.stage, "contacted")));
     await db.insert(events).values({ creatorId: thread.creatorId, type: "reply.received", payload: { threadId: thread.id, label } });
     processed++;
   }

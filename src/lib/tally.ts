@@ -134,7 +134,6 @@ export async function onboardTally(
     igHandle,
     primaryPlatform: "instagram",
     source: "first_party",
-    status: "prospect",
   });
 
   if (!result.created && igHandle && !result.creator.igHandle) {

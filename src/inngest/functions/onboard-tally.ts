@@ -2,7 +2,8 @@ import { eq, sql } from "drizzle-orm";
 import { inngest } from "@/lib/inngest";
 import { db } from "@/db";
 import { creators } from "@/db/schema";
-import { shopifyDraftOrder } from "@/lib/integrations";
+import { createGiftDraftOrder } from "@/lib/shopify";
+import { claimGift, completeGift, failGift } from "@/lib/provisioning";
 
 const normalizeHandle = (h: string | null | undefined) => (h ?? "").trim().replace(/^@+/, "").toLowerCase();
 
@@ -94,16 +95,27 @@ export const onboardTally = inngest.createFunction(
 
     // Already invited/replied, wants PULSE now, address given → ship now.
     if (["replied", "contacted"].includes(c.stage) && shipping && wantsPulseNow) {
-      const draft = await step.run("draft-order", () => shopifyDraftOrder({
-        variantId: process.env.PULSE_SEEDING_VARIANT_ID!, shipping,
-        creatorId: c.id, handle: c.handle, tier: c.tier,
-      }));
-      await step.run("save", () => db.update(creators).set({
-        shopifyDraftOrderId: String((draft as any).draft_order.id), stage: "onboarded",
-        ...(igNorm ? { igHandle: igNorm } : {}),
-        rawModash: { ...(c.rawModash as any), addressForm: true, shipping, ...(choiceStr ? { formChoices: choiceStr } : {}), submittedAt },
-        updatedAt: new Date(),
-      }).where(eq(creators.id, c.id)));
+      // Authoritative DB claim before the Shopify side effect — a redelivered
+      // webhook or a race with outreach-on-tiered can't create a second order.
+      const claim = await step.run("claim-gift", () => claimGift(c.id));
+      if (!claim) return;
+      try {
+        const draft = await step.run("draft-order", () => createGiftDraftOrder({
+          variantId: process.env.PULSE_SEEDING_VARIANT_ID!, shipping,
+          creatorId: c.id, handle: c.handle, tier: c.tier,
+        }));
+        const draftOrderId = String(draft.draft_order.id);
+        await step.run("save", () => db.update(creators).set({
+          shopifyDraftOrderId: draftOrderId, stage: "onboarded",
+          ...(igNorm ? { igHandle: igNorm } : {}),
+          rawModash: { ...(c.rawModash as any), addressForm: true, shipping, ...(choiceStr ? { formChoices: choiceStr } : {}), submittedAt },
+          updatedAt: new Date(),
+        }).where(eq(creators.id, c.id)));
+        await step.run("complete-claim", () => completeGift(claim.id, { draftOrderId }));
+      } catch (err) {
+        await step.run("fail-claim", () => failGift(claim.id, err));
+        throw err;
+      }
       return;
     }
 

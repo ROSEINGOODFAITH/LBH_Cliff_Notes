@@ -57,7 +57,6 @@ export async function addCreatorManual(_prev: ActionResult | null, fd: FormData)
     followerCount: num(fd, "followerCount") ?? null,
     nicheTags: niche ? niche.split(",").map((s) => s.trim()).filter(Boolean) : null,
     source: "manual",
-    status: "prospect",
   });
   await db.insert(events).values({
     creatorId: creator.id,
@@ -97,7 +96,6 @@ export async function importCreatorsCsv(_prev: ActionResult | null, fd: FormData
       followerCount: Number.isFinite(followers) && followers > 0 ? followers : null,
       nicheTags: niche ? niche.split(/[;|]/).map((s) => s.trim()).filter(Boolean) : null,
       source: "manual",
-      status: "prospect",
     });
     res.created ? created++ : skipped++;
   }
@@ -164,7 +162,6 @@ export async function seedFromShopify(_prev: ActionResult | null, fd: FormData):
         displayName: name,
         email,
         source: "first_party",
-        status: "prospect",
         notes: `Imported from Shopify (tag: ${tag})`,
       });
       if (res.created) {
