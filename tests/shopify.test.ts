@@ -5,7 +5,7 @@ import {
   giftIdempotencyKey,
   GIFT_DISCOUNT_TITLE,
   GIFT_DISCOUNT_DESCRIPTION,
-} from "../src/lib/integrations";
+} from "../src/lib/shopify";
 import { isProvisioned } from "../src/lib/lifecycle";
 
 const baseInput = {

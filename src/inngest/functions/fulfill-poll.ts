@@ -2,7 +2,8 @@ import { eq } from "drizzle-orm";
 import { inngest } from "@/lib/inngest";
 import { db } from "@/db";
 import { creators, outreachEvents } from "@/db/schema";
-import { shopifyGetOrderFulfillment, smartleadReply } from "@/lib/integrations";
+import { smartleadReply } from "@/lib/integrations";
+import { getGiftFulfillmentTracking } from "@/lib/shopify";
 
 export const fulfillPoll = inngest.createFunction(
   { id: "pulse-fulfill-poll" },
@@ -11,7 +12,7 @@ export const fulfillPoll = inngest.createFunction(
     const open = await db.select().from(creators).where(eq(creators.stage, "onboarded"));
     for (const c of open) {
       if (!c.shopifyDraftOrderId) continue;
-      const tracking = await step.run(`track-${c.id}`, () => shopifyGetOrderFulfillment(c.shopifyDraftOrderId!));
+      const tracking = await step.run(`track-${c.id}`, () => getGiftFulfillmentTracking(c.shopifyDraftOrderId!));
       if (tracking) {
         await step.run(`ship-${c.id}`, async () => {
           await db.update(creators).set({ trackingNumber: String(tracking), stage: "shipped", updatedAt: new Date() }).where(eq(creators.id, c.id));
