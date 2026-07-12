@@ -1,8 +1,9 @@
-import { and, desc, eq, ilike, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { creators, contentMentions, events } from "@/db/schema";
 import { brandConfig } from "@/lib/brand";
 import { getCollaborationPosts, modashConfigured, type ModashPlatform } from "@/lib/modash";
+import { ENGAGED_STAGES } from "@/lib/lifecycle";
 
 export type ContentRow = typeof contentMentions.$inferSelect;
 
@@ -30,7 +31,7 @@ export async function syncBrandMentions(): Promise<MentionSyncResult> {
   const tracked = await db
     .select()
     .from(creators)
-    .where(sql`${creators.status} in ('active','negotiating','replied')`)
+    .where(inArray(creators.stage, ENGAGED_STAGES))
     .limit(25);
   if (tracked.length === 0) return { ok: true, message: "No active creators to track yet.", found: 0, added: 0 };
 

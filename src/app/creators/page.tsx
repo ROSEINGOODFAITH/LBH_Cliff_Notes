@@ -1,17 +1,18 @@
 import { requireTeamMember } from "@/lib/auth";
 import { AppNav } from "@/components/app-nav";
+import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { StageBadge } from "@/components/stage-badge";
 import { Input, fieldClass } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { listCreators, type CreatorFilters, type Platform, type CreatorStatus } from "@/lib/creators";
+import { listCreators, type CreatorFilters, type Platform } from "@/lib/creators";
+import { CREATOR_STAGES, stageMeta, type CreatorStage } from "@/lib/lifecycle";
 import { modashConfigured } from "@/lib/modash";
 import { formatCompact } from "@/lib/utils";
 import { AddCreatorForm, CsvImportForm, ShopifySeedForm, EnrichButton } from "./creator-forms";
 
 export const dynamic = "force-dynamic";
-
-const STATUSES = ["prospect", "contacted", "replied", "negotiating", "active", "declined", "dormant"];
 
 function pickStr(v: string | string[] | undefined): string | undefined {
   return typeof v === "string" && v.trim() ? v.trim() : undefined;
@@ -29,7 +30,7 @@ export default async function CreatorsPage({
   const team = await requireTeamMember();
   const sp = await searchParams;
   const platform = pickStr(sp.platform);
-  const status = pickStr(sp.status);
+  const stage = pickStr(sp.stage);
   const minFollowersRaw = pickStr(sp.minFollowers);
   const minEngRaw = pickStr(sp.minEngagement);
 
@@ -38,7 +39,7 @@ export default async function CreatorsPage({
     platform: (["instagram", "tiktok", "youtube"].includes(platform ?? "") ? platform : undefined) as
       | Platform
       | undefined,
-    status: (STATUSES.includes(status ?? "") ? status : undefined) as CreatorStatus | undefined,
+    stage: (CREATOR_STAGES.includes((stage ?? "") as CreatorStage) ? stage : undefined) as CreatorStage | undefined,
     niche: pickStr(sp.niche),
     minFollowers: minFollowersRaw ? Number(minFollowersRaw.replace(/[, ]/g, "")) : undefined,
     minEngagement: minEngRaw ? Number(minEngRaw) / 100 : undefined,
@@ -96,11 +97,11 @@ export default async function CreatorsPage({
             <option value="tiktok">TikTok</option>
             <option value="youtube">YouTube</option>
           </select>
-          <select name="status" defaultValue={status ?? ""} className={`${fieldClass} max-w-[150px]`}>
-            <option value="">All statuses</option>
-            {STATUSES.map((s) => (
+          <select name="stage" defaultValue={stage ?? ""} className={`${fieldClass} max-w-[150px]`}>
+            <option value="">All stages</option>
+            {CREATOR_STAGES.map((s) => (
               <option key={s} value={s}>
-                {s}
+                {stageMeta(s).label}
               </option>
             ))}
           </select>
@@ -127,7 +128,7 @@ export default async function CreatorsPage({
                     <th className="p-3 font-medium">Platform</th>
                     <th className="p-3 font-medium">Followers</th>
                     <th className="p-3 font-medium">ER</th>
-                    <th className="p-3 font-medium">Status</th>
+                    <th className="p-3 font-medium">Stage</th>
                     <th className="p-3 font-medium">Source</th>
                     <th className="p-3 font-medium">Niches</th>
                     <th className="p-3 font-medium"></th>
@@ -144,7 +145,9 @@ export default async function CreatorsPage({
                     rows.map((c) => (
                       <tr key={c.id} className="border-b border-border/60 last:border-0">
                         <td className="p-3">
-                          <div className="font-medium">@{c.handle}</div>
+                          <Link href={`/creators/${c.id}`} className="font-medium hover:text-primary hover:underline underline-offset-2">
+                            @{c.handle}
+                          </Link>
                           {c.displayName && (
                             <div className="text-xs text-muted-foreground">{c.displayName}</div>
                           )}
@@ -155,7 +158,7 @@ export default async function CreatorsPage({
                         <td className="p-3 tabular-nums">{formatCompact(c.followerCount)}</td>
                         <td className="p-3 tabular-nums">{fmtER(c.engagementRate)}</td>
                         <td className="p-3">
-                          <Badge variant={c.status === "active" ? "success" : "outline"}>{c.status}</Badge>
+                          <StageBadge stage={c.stage} />
                         </td>
                         <td className="p-3 text-xs text-muted-foreground">{c.source}</td>
                         <td className="p-3 text-xs text-muted-foreground">

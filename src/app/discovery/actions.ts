@@ -117,7 +117,6 @@ export async function approveCandidate(_prev: DiscoveryResult | null, fd: FormDa
     avatarUrl: cand.avatarUrl,
     modashId: cand.modashUserId,
     source: "competitor_mention",
-    status: "prospect",
     notes: cand.sourceCompetitor ? `Discovered via collaboration with ${cand.sourceCompetitor}` : null,
   });
   await db

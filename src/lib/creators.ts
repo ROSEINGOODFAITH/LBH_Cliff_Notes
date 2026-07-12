@@ -2,8 +2,9 @@ import { and, desc, eq, gte, ilike, lte, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { creators } from "@/db/schema";
 
+import type { CreatorStage } from "@/lib/lifecycle";
+
 export type Platform = (typeof creators.primaryPlatform.enumValues)[number];
-export type CreatorStatus = (typeof creators.status.enumValues)[number];
 export type CreatorSource = (typeof creators.source.enumValues)[number];
 export type CreatorRow = typeof creators.$inferSelect;
 export type NewCreator = typeof creators.$inferInsert;
@@ -11,7 +12,7 @@ export type NewCreator = typeof creators.$inferInsert;
 export interface CreatorFilters {
   q?: string;
   platform?: Platform;
-  status?: CreatorStatus;
+  stage?: CreatorStage;
   source?: CreatorSource;
   niche?: string;
   geo?: string;
@@ -26,7 +27,7 @@ export async function listCreators(f: CreatorFilters = {}): Promise<CreatorRow[]
   const conds = [];
   if (f.q) conds.push(or(ilike(creators.handle, `%${f.q}%`), ilike(creators.displayName, `%${f.q}%`)));
   if (f.platform) conds.push(eq(creators.primaryPlatform, f.platform));
-  if (f.status) conds.push(eq(creators.status, f.status));
+  if (f.stage) conds.push(eq(creators.stage, f.stage));
   if (f.source) conds.push(eq(creators.source, f.source));
   if (f.minFollowers != null) conds.push(gte(creators.followerCount, f.minFollowers));
   if (f.maxFollowers != null) conds.push(lte(creators.followerCount, f.maxFollowers));

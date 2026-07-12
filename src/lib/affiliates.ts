@@ -3,7 +3,8 @@ import { db } from "@/db";
 import { creators, affiliates, ordersAttributed, events } from "@/db/schema";
 import { brandConfig } from "@/lib/brand";
 import { createDiscountCode, getRecentOrders, shopifyConfigured } from "@/lib/shopify";
-import { insertCreatorIfNew, type Platform } from "@/lib/creators";
+import { insertCreatorIfNew, getCreator, type Platform } from "@/lib/creators";
+import { advanceStage, type CreatorStage } from "@/lib/lifecycle";
 
 export type AffiliateRow = typeof affiliates.$inferSelect;
 
@@ -50,7 +51,6 @@ export async function createAffiliateFromSignup(input: SignupInput): Promise<Sig
     displayName: input.displayName ?? null,
     primaryPlatform: input.platform ?? null,
     source: "first_party",
-    status: "prospect",
     notes: "Self-signed-up via /join",
   });
 
@@ -96,7 +96,15 @@ export async function activateAffiliate(affiliateId: string): Promise<{ ok: bool
       percentage: Math.max(0, Math.min(1, pct / 100)),
     });
     await db.update(affiliates).set({ status: "active", shopifyDiscountId: disc.id }).where(eq(affiliates.id, affiliateId));
-    await db.update(creators).set({ status: "active" }).where(eq(creators.id, aff.creatorId));
+    // An activated affiliate is a live collaboration → advance the canonical
+    // stage to `onboarded`, but never regress a creator already further along.
+    const creator = await getCreator(aff.creatorId);
+    if (creator) {
+      const advanced = advanceStage(creator.stage as CreatorStage, "onboarded");
+      if (advanced !== creator.stage) {
+        await db.update(creators).set({ stage: advanced }).where(eq(creators.id, aff.creatorId));
+      }
+    }
     await db.insert(events).values({
       creatorId: aff.creatorId,
       type: "affiliate.activated",

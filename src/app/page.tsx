@@ -5,6 +5,7 @@ import { integrations } from "@/lib/env";
 import { getFunnelCounts } from "@/lib/analytics";
 import { formatUSD } from "@/lib/utils";
 import { BentoGrid, BentoCell, StatTile } from "@/components/bento";
+import { Funnel } from "@/components/funnel";
 
 export const dynamic = "force-dynamic";
 
@@ -65,11 +66,15 @@ export default async function DashboardPage() {
             </div>
           </BentoCell>
           <StatTile span={3} label="Active" value={n(funnel?.active)} sub="creators" />
-          <StatTile span={3} label="Posted" value={n(funnel?.posted)} sub="have content" />
-          <StatTile span={3} label="Discovered" value={n(funnel?.discovered)} />
-          <StatTile span={3} label="Contacted" value={n(funnel?.contacted)} />
-          <StatTile span={3} label="Replied" value={n(funnel?.replied)} />
-          <StatTile span={3} label="Orders" value={n(funnel?.orders)} />
+          <StatTile span={3} label="Orders" value={n(funnel?.orders)} sub="attributed" />
+
+          {/* Pipeline funnel — shape/labels come solely from canonical lifecycle */}
+          <BentoCell span={12} mobile={2}>
+            <div className="mb-4 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+              Pipeline
+            </div>
+            <Funnel counts={funnel} />
+          </BentoCell>
         </BentoGrid>
 
         <BentoGrid>
