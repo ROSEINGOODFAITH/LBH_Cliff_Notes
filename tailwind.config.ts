@@ -47,6 +47,10 @@ const config: Config = {
         // Funnel/status accents used across the CRM
         success: "hsl(var(--success))",
         warning: "hsl(var(--warning))",
+        // PULSE campaign-only accents (used sparingly in the launch cockpit)
+        "pulse-grape": "hsl(var(--pulse-grape))",
+        "pulse-coral": "hsl(var(--pulse-coral))",
+        "pulse-lycra": "hsl(var(--pulse-lycra))",
       },
       borderRadius: {
         lg: "var(--radius)",

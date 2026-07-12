@@ -108,6 +108,9 @@ export interface OutreachContext {
   };
   campaign?: { name: string; objective: string; productSkus?: string[] | null } | null;
   senderName?: string;
+  /** Optional campaign brief + this creator's angle (PULSE context-aware drafting). */
+  brief?: { product: string; oneLiner: string; artDirection: string } | null;
+  angleHook?: string | null;
 }
 export interface OutreachDraft {
   subject: string;
@@ -134,6 +137,11 @@ export async function generateOutreach(ctx: OutreachContext): Promise<OutreachDr
     ctx.campaign
       ? `Campaign: ${ctx.campaign.name} (objective: ${ctx.campaign.objective}${ctx.campaign.productSkus?.length ? `, products: ${ctx.campaign.productSkus.join(", ")}` : ""})`
       : `No specific campaign — general partnership interest.`,
+    ctx.brief ? `Product brief: ${ctx.brief.product} — ${ctx.brief.oneLiner}. Art direction: ${ctx.brief.artDirection}` : null,
+    ctx.angleHook ? `Lead angle for this creator: ${ctx.angleHook}` : null,
+    ctx.brief
+      ? `Offer: a no-obligation invitation to a small product-testing group. Do NOT promise payment, require a post, or mention affiliate quotas in this first touch.`
+      : null,
   ].filter(Boolean);
 
   const raw = await callClaude({ model: MODELS.draft, system, user: userLines.join("\n"), maxTokens: 1024 });

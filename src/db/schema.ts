@@ -107,6 +107,10 @@ export const creators = pgTable(
     niche: text("niche"), // single primary niche (PULSE); `nicheTags` remains the multi-tag field
     aestheticScore: integer("aesthetic_score"), // 0..100, Claude brand-fit
     fitScore: integer("fit_score").default(50),
+    /** PULSE explainable fit rubric (0..100) + component breakdown; see lib/pulse-fit.ts. */
+    pulseFit: jsonb("pulse_fit"), // { score, components, spamRisk, tags, rationale, missing }
+    /** PULSE operational ring: signal | editorial | advocate (see lib/pulse-rings.ts). */
+    ring: text("ring"),
     stage: creatorStageEnum("stage").notNull().default("sourced"),
     tier: text("tier"), // A | B
     discountCode: text("discount_code"),
@@ -130,6 +134,7 @@ export const creators = pgTable(
     modashIdUnique: uniqueIndex("creators_modash_id_unique").on(t.modashId),
     stageIdx: index("creators_stage_idx").on(t.stage),
     fitIdx: index("creators_fit_idx").on(t.fitScore),
+    ringIdx: index("creators_ring_idx").on(t.ring),
     discountCodeUnique: uniqueIndex("creators_discount_code_unique").on(t.discountCode),
   }),
 );

@@ -54,6 +54,14 @@
     --input: 240 5% 15%;
     --ring: 38 41% 63%;
     --radius: 0.75rem;
+
+    /* PULSE campaign accents — a controlled, launch-only palette layered on top
+       of the champagne system. Used sparingly (headers, phase chips, focus
+       highlights), never as the primary UI color, so the LBH identity stays
+       intact and contrast stays accessible. */
+    --pulse-grape: 280 68% 62%; /* electric grape */
+    --pulse-coral: 8 90% 66%; /* aerobic coral */
+    --pulse-lycra: 190 90% 62%; /* lycra sheen (cyan highlight) */
   }
 }
 
@@ -98,6 +106,23 @@
     background:
       radial-gradient(60% 50% at 50% 0%, hsl(38 41% 63% / 0.10), transparent 70%),
       radial-gradient(40% 40% at 80% 20%, hsl(210 100% 60% / 0.06), transparent 70%);
+  }
+
+  /* PULSE launch cockpit header wash — grape → coral, low-opacity so text stays
+     legible over the near-black card. Champagne hairline keeps it on-brand. */
+  .pulse-wash {
+    background:
+      radial-gradient(80% 120% at 0% 0%, hsl(var(--pulse-grape) / 0.16), transparent 60%),
+      radial-gradient(80% 120% at 100% 0%, hsl(var(--pulse-coral) / 0.12), transparent 60%);
+  }
+  /* Faint leopard-cue texture: soft dot field, very low contrast (decorative,
+     aria-hidden). A nod to the art direction without literal clip art. */
+  .pulse-spots {
+    background-image: radial-gradient(hsl(var(--pulse-coral) / 0.10) 1px, transparent 1.4px);
+    background-size: 22px 22px;
+  }
+  .pulse-sheen {
+    background: linear-gradient(100deg, hsl(var(--pulse-lycra) / 0.18), hsl(var(--pulse-grape) / 0.10));
   }
 }
 
