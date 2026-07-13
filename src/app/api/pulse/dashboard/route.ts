@@ -25,14 +25,10 @@ export async function GET() {
     .innerJoin(creators, eq(payouts.creatorId, creators.id))
     .where(eq(payouts.status, "pending"));
   const [weights] = await db.select().from(modelWeights);
-  // Health: has enrichment recently run without Modash data? (fail-soft marker)
-  const paused = await db.select({ n: sql<number>`count(*)` }).from(creators)
-    .where(sql`${creators.rawModash}->'report'->>'__unavailable' is not null and ${creators.updatedAt} > now() - interval '48 hours'`);
   return NextResponse.json({
     stageCounts,
     goal: { organic: { current: Number(postedB[0].n), target: 500 }, paid: { current: Number(postedA[0].n), target: 100 } },
     pendingPayouts,
     model: weights ?? { weights: {}, decisionCount: 0 },
-    health: { modashPaused: Number(paused[0]?.n ?? 0) > 0 },
   });
 }

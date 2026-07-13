@@ -40,7 +40,7 @@ Every secret is server-side (env vars). Nothing is committed. Fill `.env.local` 
    in `SHOPIFY_STORE_DOMAIN`.
 
 ### Added in later phases
-- **Modash** (`MODASH_API_KEY`) — P1 creator data. Discovery shows an empty state until set.
+- **Creator data** — imported via CSV / external data source. Discovery shows an empty state until a source is configured.
 - **Anthropic** (`ANTHROPIC_API_KEY`) — P2 outreach generation + reply classification.
 - **Gmail API** (`GMAIL_*`) — P2 send + reply sync (one Google OAuth app,
   `gmail.send` + `gmail.readonly`).
@@ -98,7 +98,7 @@ with a non-allowlisted email lands on `/not-authorized`.
 ## Guardrails (enforced)
 
 - **Single-tenant** — no tenant tables; all brand identity in `brand.config.ts`.
-- **Official data only** — Modash + official platform/Shopify APIs. No HTML scraping in core.
+- **Official data only** — CSV import + official platform/Shopify APIs. No HTML scraping in core.
 - **Secrets server-side** — env vars, `.env.example` documented, nothing client-exposed.
 - **Idempotency** — unique keys on `shopify_order_id`, `post_url`, `gmail_message_id`,
   `discount_code` so order sync and code creation can't double-up.
@@ -133,7 +133,7 @@ with a non-allowlisted email lands on `/not-authorized`.
 
 ## Going fully live (checklist)
 
-- Add the remaining env vars in Vercel: `MODASH_API_KEY`, `ANTHROPIC_API_KEY`, `GMAIL_*`,
+- Add the remaining env vars in Vercel: `ANTHROPIC_API_KEY`, `GMAIL_*`,
   `SHOPIFY_*`, `INNGEST_*`.
 - Shopify custom app scopes: `read_orders`, `write_discounts`.
 - Gmail OAuth app scopes: `gmail.send`, `gmail.readonly`.

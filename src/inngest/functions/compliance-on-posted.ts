@@ -16,7 +16,7 @@ export const complianceOnPosted = inngest.createFunction(
     }
     const ai = await step.run("check-disclosure", async () => parseClaudeJson(await claude(
       `A paid TikTok post caption follows. Does it contain proper paid-partnership disclosure (#ad, #sponsored, or platform paid-partnership label mention) AND mention PULSE by Laurel Bath House?
-Caption: """${(c.rawModash as any)?.postCaption ?? ""}""" URL: ${c.postUrl}
+Caption: """${(c.sourceMetadata as any)?.postCaption ?? ""}""" URL: ${c.postUrl}
 Return ONLY JSON: {"disclosureOk": true|false, "reason": "..."}`)));
     await step.run("save", () => db.update(creators).set({ disclosureOk: ai.disclosureOk, updatedAt: new Date() }).where(eq(creators.id, c.id)));
     if (ai.disclosureOk) {

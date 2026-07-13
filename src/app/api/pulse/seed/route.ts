@@ -14,7 +14,7 @@ import type { CreatorStage } from "@/lib/lifecycle";
  * without a live pipeline.
  *
  * SAFETY: only runs in MOCK mode (`MOCK=1`), which production never sets, so it
- * can never touch real data. Every row is tagged `rawModash.demo = true`, and
+ * can never touch real data. Every row is tagged `sourceMetadata.demo = true`, and
  * DELETE removes exactly those rows — the seed is fully reversible and never
  * collides with imported/enriched creators.
  */
@@ -101,7 +101,7 @@ export async function POST() {
         handle: s.handle,
         displayName: s.displayName,
         email: `${s.handle}@example.com`,
-        source: s.source ?? "modash",
+        source: s.source ?? "csv",
         primaryPlatform: s.platform,
         followerCount: s.fit.followerCount ?? null,
         engagementRate: s.fit.engagementRate ?? null,
@@ -115,7 +115,7 @@ export async function POST() {
         pulseFit: fit,
         ring,
         stage: s.stage,
-        rawModash: { ...DEMO_MARKER, importedAt: new Date().toISOString() },
+        sourceMetadata: { ...DEMO_MARKER, importedAt: new Date().toISOString() },
       })
       .returning({ id: creators.id });
     idByHandle.set(s.handle, row.id);
@@ -194,7 +194,7 @@ async function clearDemo(): Promise<number> {
   const demo = await db
     .select({ id: creators.id })
     .from(creators)
-    .where(sql`${creators.rawModash}->>'demo' = 'true'`);
+    .where(sql`${creators.sourceMetadata}->>'demo' = 'true'`);
   const ids = demo.map((d) => d.id);
   await db.delete(ordersAttributed).where(like(ordersAttributed.shopifyOrderId, "demo-order-%"));
   if (ids.length) {

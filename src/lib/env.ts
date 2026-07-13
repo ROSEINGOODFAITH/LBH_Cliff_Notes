@@ -16,9 +16,6 @@ const envSchema = z.object({
   // ---- AI (required from P2) ----
   ANTHROPIC_API_KEY: z.string().min(1).optional(),
 
-  // ---- Modash creator data (required from P1) ----
-  MODASH_API_KEY: z.string().min(1).optional(),
-
   // ---- Shopify Admin ----
   SHOPIFY_STORE_DOMAIN: z.string().min(1).optional(),
   SHOPIFY_ADMIN_TOKEN: z.string().min(1).optional(),
@@ -73,9 +70,6 @@ export const integrations = {
   shopify(): boolean {
     const e = getEnv();
     return Boolean(e.SHOPIFY_STORE_DOMAIN && e.SHOPIFY_ADMIN_TOKEN);
-  },
-  modash(): boolean {
-    return Boolean(getEnv().MODASH_API_KEY);
   },
   anthropic(): boolean {
     return Boolean(getEnv().ANTHROPIC_API_KEY);

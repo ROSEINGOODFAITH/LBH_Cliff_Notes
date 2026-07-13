@@ -28,11 +28,11 @@ official/licensed data only, secrets server-side, phased delivery.
   placeholder numbers), build roadmap.
 
 ### Skipped (by design — later phases)
-- Modash / Anthropic / Gmail / Inngest wiring → P1–P2.
+- Creator-data import / Anthropic / Gmail / Inngest wiring → P1–P2.
 - Affiliate engine + attribution → P3. Content tracking + analytics → P4. TikTok Shop → P5.
 
 ### Next (P1 — Creator DB, Module A)
-- Modash enrichment client with caching + the "no re-enrich within 30 days" rule.
+- Creator enrichment from imported data + the "no re-enrich within 30 days" rule.
 - Creator search/filter UI; manual add + CSV import.
 - Competitor-mention discovery review queue.
 
@@ -42,7 +42,7 @@ Provide these and I'll wire + verify end-to-end (see README → Setup):
 2. **Clerk** publishable + secret keys
 3. **Shopify** Admin API token + exact `*.myshopify.com` domain
 
-Modash, Anthropic and Gmail keys aren't needed until P1/P2.
+Anthropic and Gmail keys aren't needed until P1/P2.
 
 ### Manual test (P0)
 With env set: `npm install` → `npm run db:migrate` → `npm run dev`. Sign in with a
@@ -55,29 +55,25 @@ With env set: `npm install` → `npm run db:migrate` → `npm run dev`. Sign in 
 ## P1 — Creator DB + Discovery (Module A) ✅ code complete
 
 ### Built
-- **Modash client** (`lib/modash.ts`) — verified against current docs: `POST /{platform}/search`,
-  `GET /{platform}/profile/{userId}/report` (enrichment), `POST /collaborations/posts`
-  (creators linked to a brand), dictionary endpoints. Retry/backoff, dictionary caching, and a
-  graceful not-configured error.
 - **`discovery_candidates`** table + migration `0001` (deduped review queue).
 - **Creator database UI** (`/creators`) — dense table with server-side filters (search,
   platform, status, niche, min followers, min ER) backed by real queries (`lib/creators.ts`).
-- **On-demand enrichment** — Modash report → creator fields (followers, ER, email, avatar,
-  niches, audience geo/age) with the **30-day re-enrich guard** (`modashLastEnrichedAt`).
+- **Creator enrichment** — enriches creator fields (followers, ER, email, avatar,
+  niches, audience geo/age) from imported data with the **30-day re-enrich guard** (`lastEnrichedAt`).
 - **Manual add + CSV import** + **first-party Shopify seed** (import customers by tag).
-- **Competitor discovery** (`/discovery`) — runs Modash collaborations per competitor brand,
+- **Competitor discovery** (`/discovery`) — reviews creators linked to competitor brands,
   dedupes vs creators + existing candidates, presents an approve/dismiss queue. Approve → saves
   to `creators` as `competitor_mention`. Never auto-promoted.
-- **Empty/disabled states wherever Modash is unset** — no fabricated data.
+- **Empty/disabled states wherever a data source is unset** — no fabricated data.
 
 ### Verified
-- Schema → migration generated cleanly (11 tables, 12 enums). All 31 source files parse. Core
-  data/logic layer (`modash`, `creators`, `csv`, `env`, `shopify`, `db`, `schema`) type-checks
+- Schema → migration generated cleanly (11 tables, 12 enums). Core
+  data/logic layer (`creators`, `csv`, `env`, `shopify`, `db`, `schema`) type-checks
   clean against real drizzle-orm / zod / neon types.
 
-### Needs Modash to run live
-Discovery + enrichment light up the moment `MODASH_API_KEY` is set; until then they show
-disabled states. Manual add / CSV / Shopify seed work without Modash.
+### Needs a data source to run live
+Discovery + enrichment light up once an external data source is configured; until then they
+show disabled states. Manual add / CSV / Shopify seed work without any external source.
 
 ### Next (P2 — AI Outreach, Module B)
 Brand-voice draft generation (Claude) → Gmail send → reply sync (Inngest) → reply
@@ -85,8 +81,7 @@ classification → priority inbox.
 
 ### Manual test (P1)
 On `/creators`: add a creator, import a CSV, filter the table — results update from the DB.
-With `MODASH_API_KEY` set: click **Enrich** on a creator (pulls a live Modash report); on
-`/discovery`, **Run discovery** against the competitor defaults, then **Approve** a candidate
+On `/discovery`, **Run discovery** against the competitor defaults, then **Approve** a candidate
 and confirm it appears on `/creators`.
 
 ---
@@ -162,9 +157,9 @@ affiliate and on the dashboard funnel.
 ## P4 — Content tracking + funnel analytics (Modules D + E) ✅ code complete
 
 ### Built
-- **Content tracking** (`lib/content.ts`) — polls Modash collaborations for active creators,
-  keeps posts that mention Laurel Bath House (sponsor match), stores in `content_mentions`
-  (idempotent by post key). Inngest `sync-content-mentions` cron (6h) + manual button.
+- **Content tracking** (`lib/content.ts`) — tracks brand mentions from an external content
+  source for active creators, keeps posts that mention Laurel Bath House (sponsor match), stores
+  in `content_mentions` (idempotent by post key). Inngest `sync-content-mentions` cron (6h) + manual button.
 - **`/content`** library — grid of tracked posts (thumbnail, platform, date, engagement); filter
   by creator handle / platform.
 - **Funnel dashboard** (`lib/analytics.ts`) — overview tiles now show **real counts** pulled live
@@ -172,7 +167,7 @@ affiliate and on the dashboard funnel.
   placeholders.
 
 ### Needs to run live
-`MODASH_API_KEY` for mention tracking. Funnel counts are always live.
+An external content source for mention tracking. Funnel counts are always live.
 
 ---
 
@@ -181,8 +176,8 @@ affiliate and on the dashboard funnel.
 - **Secrets**: all server-side (env vars), validated in `lib/env.ts`; only
   `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` is client-exposed. `.env.example` documents every key;
   nothing committed.
-- **Resilience**: every external client (Shopify, Modash, Anthropic, Gmail) wraps calls in retry
-  + exponential backoff + 429 handling; Modash enrichment honors the 30-day rule; reply / order /
+- **Resilience**: every external client (Shopify, Anthropic, Gmail) wraps calls in retry
+  + exponential backoff + 429 handling; creator enrichment honors the 30-day rule; reply / order /
   mention ingest is idempotent.
 - **Empty / disabled states** everywhere an integration is unconfigured — never fabricated data.
 - **TikTok Shop**: deferred — needs TikTok Shop API access that isn't granted. The affiliate

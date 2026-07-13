@@ -1,6 +1,5 @@
 import { serve } from "inngest/next";
 import { inngest, functions } from "@/lib/inngest";
-import { sourceDaily } from "@/inngest/functions/source-daily";
 import { enrichOnSourced } from "@/inngest/functions/enrich-on-sourced";
 import { outreachOnTiered } from "@/inngest/functions/outreach-on-tiered";
 import { repliesWebhook } from "@/inngest/functions/replies-webhook";
@@ -14,12 +13,11 @@ export const runtime = "nodejs";
 
 // Public endpoint (allowlisted in middleware); signature-verified via
 // INNGEST_SIGNING_KEY in production. Serves the original sync jobs plus the
-// nine PULSE campaign functions.
+// eight PULSE campaign functions.
 export const { GET, POST, PUT } = serve({
   client: inngest,
   functions: [
     ...functions,
-    sourceDaily,
     enrichOnSourced,
     outreachOnTiered,
     repliesWebhook,

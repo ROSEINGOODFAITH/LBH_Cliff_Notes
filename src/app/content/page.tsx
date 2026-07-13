@@ -4,8 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input, fieldClass } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { listContentMentions, type ContentFilters } from "@/lib/content";
-import { modashConfigured, type ModashPlatform } from "@/lib/modash";
+import { listContentMentions, type ContentFilters, type Platform } from "@/lib/content";
 import { formatCompact } from "@/lib/utils";
 import { SyncMentionsButton } from "./content-forms";
 
@@ -26,11 +25,10 @@ export default async function ContentPage({
   const filters: ContentFilters = {
     q: pickStr(sp.q),
     platform: (["instagram", "tiktok", "youtube"].includes(platform ?? "") ? platform : undefined) as
-      | ModashPlatform
+      | Platform
       | undefined,
   };
   const items = await listContentMentions(filters);
-  const modashOn = modashConfigured();
 
   return (
     <div className="min-h-screen">
@@ -43,14 +41,8 @@ export default async function ContentPage({
               Brand-mentioning posts by tracked creators. {items.length} post(s).
             </p>
           </div>
-          <SyncMentionsButton disabled={!modashOn} />
+          <SyncMentionsButton />
         </div>
-
-        {!modashOn && (
-          <div className="rounded-md border border-border bg-secondary/40 px-4 py-2 text-xs text-muted-foreground">
-            Modash isn&apos;t configured — mention tracking is disabled. Add <code>MODASH_API_KEY</code>.
-          </div>
-        )}
 
         <form className="flex flex-wrap items-end gap-2" action="/content" method="get">
           <Input name="q" defaultValue={filters.q ?? ""} placeholder="Creator handle" className="max-w-[220px]" />

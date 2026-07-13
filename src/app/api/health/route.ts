@@ -21,7 +21,6 @@ export async function GET() {
   try {
     body.integrations = {
       shopify: integrations.shopify(),
-      modash: integrations.modash(),
       anthropic: integrations.anthropic(),
       gmail: integrations.gmail(),
     };

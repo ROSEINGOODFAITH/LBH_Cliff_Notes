@@ -7,8 +7,8 @@ import { inngest } from "@/lib/inngest";
 /**
  * Manual PULSE intake, two modes:
  *
- * 1. `prospects` (default) — TikTok or Instagram handles, or a Modash CSV
- *    export (stats + emails ride along, no Modash API credits needed).
+ * 1. `prospects` (default) — TikTok or Instagram handles, or a CSV
+ *    export (stats + emails ride along, no external API needed).
  *    Inserted as stage `sourced`, emits `creator.sourced` → enrich → review.
  *    Re-importing a handle still in `sourced` re-queues it and refreshes stats.
  *
@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
         ...(platform === "instagram" && HANDLE_RE.test(handleRaw) ? { igHandle: handleRaw } : {}),
         stage: "replied", // already talking — skips cold outreach; Tally matches by handle OR email
         tier: r?.tier === "A" ? "A" : "B",
-        rawModash: { manualContact: true, importedAt: new Date().toISOString() },
+        sourceMetadata: { manualContact: true, importedAt: new Date().toISOString() },
       });
       queued++;
     }
@@ -90,7 +90,7 @@ export async function POST(req: NextRequest) {
     if (str(r?.geo)) stats.geo = str(r?.geo);
     if (str(r?.niche)) stats.niche = str(r?.niche)!.toLowerCase();
     // Emails: validate, lowercase, dedupe; first becomes the contact address,
-    // the rest are kept on the creator's file (rawModash.emails).
+    // the rest are kept on the creator's file (sourceMetadata.emails).
     const emailCandidates: unknown[] = Array.isArray(r?.emails) ? r.emails : [r?.email];
     const emails: string[] = [...new Set(
       emailCandidates
@@ -108,14 +108,14 @@ export async function POST(req: NextRequest) {
     // Instagram is prefixed so the same handle string on both platforms can't collide.
     const dedupeKey = platform === "instagram" ? `ig:${handle}` : handle;
     const row = await db.insert(creators).values({
-      modashId: dedupeKey,
+      externalId: dedupeKey,
       handle,
-      source: "modash",
+      source: "csv",
       primaryPlatform: platform,
       ...(platform === "instagram" ? { igHandle: handle } : {}),
       ...stats,
-      rawModash: { manualIntake: true, importedAt: new Date().toISOString(), ...(extraEmails ? { emails: extraEmails } : {}) },
-    }).onConflictDoNothing({ target: creators.modashId }).returning({ id: creators.id });
+      sourceMetadata: { manualIntake: true, importedAt: new Date().toISOString(), ...(extraEmails ? { emails: extraEmails } : {}) },
+    }).onConflictDoNothing({ target: creators.externalId }).returning({ id: creators.id });
     if (row.length) {
       queued++;
       await inngest.send({ name: "creator.sourced", data: { creatorId: row[0].id } });
@@ -123,7 +123,7 @@ export async function POST(req: NextRequest) {
       // Already known — if still waiting on enrichment, refresh stats + re-emit
       // (re-pasting the same list is the self-serve retry).
       const existing = (await db.select({ id: creators.id, stage: creators.stage })
-        .from(creators).where(eq(creators.modashId, dedupeKey)))[0];
+        .from(creators).where(eq(creators.externalId, dedupeKey)))[0];
       if (existing?.stage === "sourced") {
         if (Object.keys(stats).length)
           await db.update(creators).set({ ...stats, updatedAt: new Date() }).where(eq(creators.id, existing.id));

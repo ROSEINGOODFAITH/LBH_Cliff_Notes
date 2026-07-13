@@ -5,7 +5,6 @@ import {
   addCreatorManual,
   importCreatorsCsv,
   seedFromShopify,
-  enrichCreator,
   type ActionResult,
 } from "./actions";
 import { Button } from "@/components/ui/button";
@@ -74,26 +73,6 @@ export function ShopifySeedForm() {
         </Button>
         <Msg state={state} />
       </div>
-    </form>
-  );
-}
-
-export function EnrichButton({ creatorId, disabled }: { creatorId: string; disabled?: boolean }) {
-  const [state, action, pending] = useActionState<ActionResult | null, FormData>(enrichCreator, null);
-  return (
-    <form action={action} className="inline-flex items-center gap-2">
-      <input type="hidden" name="creatorId" value={creatorId} />
-      <Button
-        type="submit"
-        size="sm"
-        variant="outline"
-        disabled={pending || disabled}
-        title={disabled ? "Add MODASH_API_KEY to enable" : "Enrich via Modash"}
-      >
-        {pending ? "Enriching…" : "Enrich"}
-      </Button>
-      {state && !state.ok && <span className="text-xs text-destructive">{state.message}</span>}
-      {state && state.ok && <span className="text-xs text-success">✓</span>}
     </form>
   );
 }

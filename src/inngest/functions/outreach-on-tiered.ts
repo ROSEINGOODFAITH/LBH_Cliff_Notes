@@ -12,7 +12,7 @@ export const outreachOnTiered = inngest.createFunction(
   { event: "creator.tiered" },
   async ({ event, step }) => {
     const c = (await db.select().from(creators).where(eq(creators.id, event.data.creatorId)))[0];
-    const shipping = (c?.rawModash as any)?.shipping ?? null;
+    const shipping = (c?.sourceMetadata as any)?.shipping ?? null;
     if (!c || !["A", "B"].includes(c.tier ?? "") || (!c.email && !shipping)) return;
     // Cheap idempotency short-circuit (defense in depth): a code or draft order
     // already means this ran. The authoritative guard is the DB claim below.
@@ -47,7 +47,7 @@ export const outreachOnTiered = inngest.createFunction(
       const campaignId = c.tier === "A" ? process.env.SMARTLEAD_CAMPAIGN_TIER_A! : process.env.SMARTLEAD_CAMPAIGN_TIER_B!;
       const res = await step.run("smartlead-push", () => smartleadPushLead(campaignId, {
         email: c.email!, first_name: c.handle,
-        custom_fields: { handle: c.handle, first_line: (c.rawModash as any)?.firstLine ?? "", code },
+        custom_fields: { handle: c.handle, first_line: (c.sourceMetadata as any)?.firstLine ?? "", code },
       }));
       await step.run("save", async () => {
         await db.update(creators).set({ discountCode: code, stage: "contacted", updatedAt: new Date() }).where(eq(creators.id, c.id));

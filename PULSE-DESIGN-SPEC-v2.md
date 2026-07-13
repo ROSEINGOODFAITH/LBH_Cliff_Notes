@@ -1,9 +1,18 @@
 # PULSE MODULE — Design Specification (v2, AUTHORITATIVE)
 
-> This document describes how the PULSE module is designed to work AS BUILT in
-> `pulse-module-v2.zip`. If the implementation in the repo differs from this spec,
-> **the repo is wrong** — correct the repo to match this document.
-> Stack: Next.js (App Router) · Neon Postgres · Drizzle · Inngest · Smartlead · Modash · Tally · Shopify · Claude API.
+> **SUPERSEDED (2026-07-13): the Modash integration has been removed.** Creator
+> sourcing and enrichment no longer use any third-party discovery API. Prospects
+> now enter through the provider-neutral **CSV import** workflow (`/pulse/import`)
+> and the screenshot importer; there is no `pulse/source.daily` cron and no
+> `MODASH_API_KEY`. All mentions of "Modash" below are **historical** — read them
+> as "the external source that was removed." Column names were renamed to neutral
+> terms (`modashId`→`externalId`, `modashLastEnrichedAt`→`lastEnrichedAt`,
+> `rawModash`→`sourceMetadata`, `modashUserId`→`externalUserId`); the `creator_source`
+> enum keeps its historical `modash` value only so pre-migration rows stay readable.
+>
+> This document describes how the PULSE module was originally designed AS BUILT in
+> `pulse-module-v2.zip`, retained for design history.
+> Original stack: Next.js (App Router) · Neon Postgres · Drizzle · Inngest · Smartlead · Modash · Tally · Shopify · Claude API.
 
 ## 1. What this system is
 

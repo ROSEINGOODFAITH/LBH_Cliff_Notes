@@ -7,6 +7,7 @@ const LINKS = [
   { href: "/pulse", label: "Pulse" },
   { href: "/pulse/flow", label: "Flow" },
   { href: "/pulse/screenshot", label: "Import shot" },
+  { href: "/pulse/import", label: "Import CSV" },
   { href: "/creators", label: "Creators" },
   { href: "/discovery", label: "Discovery" },
   { href: "/outreach", label: "Outreach" },

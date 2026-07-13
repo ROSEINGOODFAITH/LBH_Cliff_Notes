@@ -1,4 +1,4 @@
-// PULSE module — one file, four thin clients. Each is ~a fetch wrapper; no SDKs needed.
+// PULSE module — thin API clients. Each is ~a fetch wrapper; no SDKs needed.
 // (DB access lives in `@/db` — the module's own drizzle client was dropped in favor of ours.)
 
 export const MOCK = process.env.MOCK === "1";
@@ -10,34 +10,6 @@ const j = async (r: Response) => {
   }
   return r.json();
 };
-
-/* ---------- Modash ---------- */
-const MODASH = "https://api.modash.io/v1";
-const modashHeaders = () => ({ Authorization: `Bearer ${process.env.MODASH_API_KEY}`, "Content-Type": "application/json" });
-
-export async function modashSearch(page: number) {
-  if (MOCK) return { users: mockUsers(30), total: 30 };
-  return j(await fetch(`${MODASH}/tiktok/search`, {
-    method: "POST", headers: modashHeaders(),
-    body: JSON.stringify({
-      page, sort: { field: "engagementRate", direction: "desc" },
-      filter: {
-        influencer: {
-          followers: { min: 10_000, max: 500_000 },
-          engagementRate: 0.03,
-          location: [148838], // US
-          hasContactDetails: [{ contactType: "email", filterAction: "must" }],
-          relevance: ["#fragrance", "#perfumetok", "#beauty", "#grwm", "#skincare", "#unboxing"],
-        },
-      },
-    }),
-  }));
-}
-
-export async function modashReport(userId: string, platform: "tiktok" | "instagram" | "youtube" = "tiktok") {
-  if (MOCK) return { profile: {} };
-  return j(await fetch(`${MODASH}/${platform}/profile/${encodeURIComponent(userId)}/report`, { headers: modashHeaders() }));
-}
 
 /* ---------- Smartlead ---------- */
 const SL = "https://server.smartlead.ai/api/v1";
@@ -77,17 +49,3 @@ export async function claude(prompt: string, maxTokens = 500): Promise<string> {
 }
 
 export const parseClaudeJson = (s: string) => JSON.parse(s.replace(/```json|```/g, "").trim());
-
-/* ---------- Mock seed ---------- */
-function mockUsers(n: number) {
-  const niches = ["fragrance", "beauty", "lifestyle", "grwm", "fitness", "fashion", "skincare", "unboxing"];
-  return Array.from({ length: n }, (_, i) => ({
-    userId: "mock-" + Date.now() + "-" + i,
-    profile: {
-      username: "creator" + i, followers: Math.round(8000 + Math.random() ** 2 * 480000),
-      engagementRate: 0.015 + Math.random() * 0.07, averageViews: 0,
-      emails: ["creator" + i + "@example.com"], geo: "US",
-      niche: niches[i % niches.length], fakeFollowerPct: Math.random() * 40,
-    },
-  })).map((u) => { u.profile.averageViews = Math.round(u.profile.followers * (0.05 + Math.random() * 0.8)); return u; });
-}
