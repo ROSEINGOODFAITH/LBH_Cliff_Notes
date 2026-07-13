@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input, fieldClass } from "@/components/ui/input";
 import { StageBadge } from "@/components/stage-badge";
+import { PulseCockpit } from "@/components/pulse-cockpit";
 import { cn } from "@/lib/utils";
 
 /* PULSE — one screen: what needs you, what's moving, add more.
@@ -266,6 +267,9 @@ export default function PulsePage() {
             {flash}
           </div>
         )}
+
+        {/* ------------------------------ launch cockpit ------------------------------ */}
+        <PulseCockpit />
 
         {/* ------------------------------ needs you ------------------------------ */}
         <section className="mx-auto w-full max-w-2xl space-y-4">

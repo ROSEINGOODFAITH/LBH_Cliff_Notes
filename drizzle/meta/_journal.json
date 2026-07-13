@@ -43,6 +43,13 @@
       "when": 1783821432443,
       "tag": "0005_consolidate_lifecycle_provisioning",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1783840652890,
+      "tag": "0006_add_pulse_fit_and_ring",
+      "breakpoints": true
     }
   ]
 }
