@@ -5,6 +5,8 @@ import { cn } from "@/lib/utils";
 const LINKS = [
   { href: "/", label: "Overview" },
   { href: "/pulse", label: "Pulse" },
+  { href: "/pulse/flow", label: "Flow" },
+  { href: "/pulse/screenshot", label: "Import shot" },
   { href: "/creators", label: "Creators" },
   { href: "/discovery", label: "Discovery" },
   { href: "/outreach", label: "Outreach" },

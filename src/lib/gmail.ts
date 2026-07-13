@@ -78,6 +78,17 @@ function decodeB64url(data: string): string {
   return Buffer.from(data.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8");
 }
 
+export interface GmailProfile {
+  emailAddress: string;
+  messagesTotal?: number;
+  threadsTotal?: number;
+}
+
+/** Whose mailbox does the current refresh token belong to? Used for the send-safety identity check. */
+export async function getProfile(): Promise<GmailProfile> {
+  return gmailFetch<GmailProfile>(`/profile`, { method: "GET" });
+}
+
 export interface SendResult {
   id: string;
   threadId: string;

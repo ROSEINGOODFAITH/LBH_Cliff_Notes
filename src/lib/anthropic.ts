@@ -11,6 +11,7 @@ const ANTHROPIC_VERSION = "2023-06-01";
 export const MODELS = {
   draft: "claude-sonnet-4-6",
   classify: "claude-haiku-4-5-20251001",
+  vision: "claude-sonnet-4-6",
 } as const;
 
 export class AnthropicError extends Error {
@@ -84,6 +85,145 @@ async function callClaude(
     await sleep(delay);
     attempt += 1;
   }
+}
+
+type ContentBlock =
+  | { type: "text"; text: string; cache_control?: { type: "ephemeral" } }
+  | { type: "image"; source: { type: "base64"; media_type: string; data: string } };
+
+/**
+ * Vision-capable call: sends an image + text prompt. The system prompt is marked
+ * cacheable (prompt caching) since it is identical across every screenshot, so
+ * repeated extractions reuse it instead of re-billing the instructions.
+ */
+async function callClaudeVision(
+  opts: { model: string; system: string; blocks: ContentBlock[]; maxTokens: number },
+  { retries = 3, baseDelayMs = 600 }: { retries?: number; baseDelayMs?: number } = {},
+): Promise<string> {
+  const env = getEnv();
+  if (!env.ANTHROPIC_API_KEY) throw new AnthropicNotConfiguredError();
+
+  let attempt = 0;
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    const res = await fetch(BASE, {
+      method: "POST",
+      headers: {
+        "x-api-key": env.ANTHROPIC_API_KEY,
+        "anthropic-version": ANTHROPIC_VERSION,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        model: opts.model,
+        max_tokens: opts.maxTokens,
+        system: [{ type: "text", text: opts.system, cache_control: { type: "ephemeral" } }],
+        messages: [{ role: "user", content: opts.blocks }],
+      }),
+      cache: "no-store",
+    });
+
+    if (res.status !== 429 && res.status < 500) {
+      const text = await res.text();
+      if (!res.ok) throw new AnthropicError(`Anthropic ${res.status}`, res.status, text.slice(0, 500));
+      const json = JSON.parse(text);
+      return Array.isArray(json.content)
+        ? json.content.filter((b: { type: string }) => b.type === "text").map((b: { text: string }) => b.text).join("\n")
+        : "";
+    }
+    if (attempt >= retries) {
+      const text = await res.text();
+      throw new AnthropicError(`Anthropic ${res.status} (retries exhausted)`, res.status, text.slice(0, 500));
+    }
+    const ra = Number(res.headers.get("retry-after"));
+    const delay = Number.isFinite(ra) && ra > 0 ? ra * 1000 : baseDelayMs * 2 ** attempt + Math.random() * 250;
+    await sleep(delay);
+    attempt += 1;
+  }
+}
+
+/* ---------------------------- Screenshot vision --------------------------- */
+import { field, type ExtractedProfile, type ExtractPlatform } from "@/lib/screenshot";
+
+/** Accepted screenshot image types for profile extraction. */
+export type ScreenshotMediaType = "image/png" | "image/jpeg" | "image/webp" | "image/gif";
+export const SCREENSHOT_MEDIA_TYPES: ScreenshotMediaType[] = ["image/png", "image/jpeg", "image/webp", "image/gif"];
+
+const SCREENSHOT_SYSTEM = [
+  "You extract profile fields from a screenshot of a TikTok or Instagram creator profile.",
+  "Return ONLY JSON with this exact shape, each field an object {\"value\": <value-or-null>, \"confidence\": <0..1>}:",
+  '{"handle":{...},"platform":{...},"displayName":{...},"email":{...},"followerCount":{...},"bio":{...},"profileUrl":{...}}',
+  "Rules:",
+  "- handle: the @username without the leading @, lowercased.",
+  '- platform: exactly "tiktok" or "instagram" if determinable, else null.',
+  "- email: only if literally visible in the bio/contact; never guess or construct one.",
+  "- followerCount: an integer (expand 1.2K → 1200, 3.4M → 3400000); null if not shown.",
+  "- Use confidence 0 for any field you cannot read; do not invent values.",
+  "- This is an identity extraction ONLY. Do NOT infer outreach, replies, messages, or any relationship/engagement status.",
+].join("\n");
+
+interface RawField {
+  value?: unknown;
+  confidence?: unknown;
+}
+interface RawExtraction {
+  handle?: RawField;
+  platform?: RawField;
+  displayName?: RawField;
+  email?: RawField;
+  followerCount?: RawField;
+  bio?: RawField;
+  profileUrl?: RawField;
+}
+
+function str(v: unknown): string | null {
+  return typeof v === "string" && v.trim() ? v.trim() : null;
+}
+function num(v: unknown): number | null {
+  if (typeof v === "number" && Number.isFinite(v)) return Math.round(v);
+  if (typeof v === "string") {
+    const m = v.replace(/[,\s]/g, "").match(/^([0-9.]+)([kmKM])?$/);
+    if (m) {
+      let n = parseFloat(m[1]);
+      const u = (m[2] || "").toLowerCase();
+      if (u === "k") n *= 1e3;
+      if (u === "m") n *= 1e6;
+      return Number.isFinite(n) ? Math.round(n) : null;
+    }
+  }
+  return null;
+}
+function platform(v: unknown): ExtractPlatform | null {
+  return v === "instagram" ? "instagram" : v === "tiktok" ? "tiktok" : null;
+}
+
+/**
+ * Extract a REVIEWABLE creator profile from a base64 screenshot. Returns per-field
+ * confidences; it never sets a lifecycle stage, never infers outreach/replies, and
+ * never persists anything — the caller shows a confirmation screen before any save.
+ */
+export async function extractProfileFromScreenshot(
+  imageBase64: string,
+  mediaType: ScreenshotMediaType,
+): Promise<ExtractedProfile> {
+  const raw = await callClaudeVision({
+    model: MODELS.vision,
+    system: SCREENSHOT_SYSTEM,
+    blocks: [
+      { type: "image", source: { type: "base64", media_type: mediaType, data: imageBase64 } },
+      { type: "text", text: "Extract the profile fields as specified. JSON only." },
+    ],
+    maxTokens: 1024,
+  });
+  const j = extractJson<RawExtraction>(raw);
+  return {
+    handle: field(str(j.handle?.value), j.handle?.confidence),
+    platform: field(platform(j.platform?.value), j.platform?.confidence),
+    displayName: field(str(j.displayName?.value), j.displayName?.confidence),
+    email: field(str(j.email?.value), j.email?.confidence),
+    followerCount: field(num(j.followerCount?.value), j.followerCount?.confidence),
+    bio: field(str(j.bio?.value), j.bio?.confidence),
+    profileUrl: field(str(j.profileUrl?.value), j.profileUrl?.confidence),
+  };
 }
 
 /** Pull the first JSON object out of a model response, tolerating prose/fences. */

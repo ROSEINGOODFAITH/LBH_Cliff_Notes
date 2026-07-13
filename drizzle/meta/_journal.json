@@ -50,6 +50,13 @@
       "when": 1783840652890,
       "tag": "0006_add_pulse_fit_and_ring",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1784102400000,
+      "tag": "0007_screenshot_flow_relationship",
+      "breakpoints": true
     }
   ]
 }
