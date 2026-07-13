@@ -23,7 +23,8 @@ export const onboardTally = inngest.createFunction(
   { id: "pulse-onboard-tally" },
   { event: "tally/intake.submitted" },
   async ({ event, step }) => {
-    const { handle, email, igHandle, name, address1, city, province, zip, country, choices } = event.data;
+    const { handle, email, igHandle, name, address1, city, province, zip, country, choices, scentPreference } = event.data;
+    const scent = typeof scentPreference === "string" && scentPreference.trim() ? scentPreference.trim() : null;
     const norm = normalizeHandle(handle);
     const igNorm = normalizeHandle(igHandle);
     const cleanEmail = typeof email === "string" && email.trim() ? email.trim().toLowerCase() : null;
@@ -79,7 +80,7 @@ export const onboardTally = inngest.createFunction(
         source: "first_party",
         primaryPlatform: "tiktok",
         stage: "review",
-        rawModash: { addressForm: true, ...(shipping ? { shipping } : {}), ...(choiceStr ? { formChoices: choiceStr } : {}), submittedAt },
+        rawModash: { addressForm: true, ...(shipping ? { shipping } : {}), ...(choiceStr ? { formChoices: choiceStr } : {}), ...(scent ? { scentPreference: scent } : {}), submittedAt },
       }));
       return;
     }
@@ -108,7 +109,7 @@ export const onboardTally = inngest.createFunction(
         await step.run("save", () => db.update(creators).set({
           shopifyDraftOrderId: draftOrderId, stage: "onboarded",
           ...(igNorm ? { igHandle: igNorm } : {}),
-          rawModash: { ...(c.rawModash as any), addressForm: true, shipping, ...(choiceStr ? { formChoices: choiceStr } : {}), submittedAt },
+          rawModash: { ...(c.rawModash as any), addressForm: true, shipping, ...(choiceStr ? { formChoices: choiceStr } : {}), ...(scent ? { scentPreference: scent } : {}), submittedAt },
           updatedAt: new Date(),
         }).where(eq(creators.id, c.id)));
         await step.run("complete-claim", () => completeGift(claim.id, { draftOrderId }));
@@ -126,7 +127,7 @@ export const onboardTally = inngest.createFunction(
       ...(igNorm ? { igHandle: igNorm } : {}),
       ...(cleanEmail && !c.email ? { email: cleanEmail } : {}),
       ...(name && !c.displayName ? { displayName: name } : {}),
-      rawModash: { ...(c.rawModash as any), addressForm: true, ...(shipping ? { shipping } : {}), ...(choiceStr ? { formChoices: choiceStr } : {}), submittedAt },
+      rawModash: { ...(c.rawModash as any), addressForm: true, ...(shipping ? { shipping } : {}), ...(choiceStr ? { formChoices: choiceStr } : {}), ...(scent ? { scentPreference: scent } : {}), submittedAt },
       updatedAt: new Date(),
     }).where(eq(creators.id, c.id)));
   });

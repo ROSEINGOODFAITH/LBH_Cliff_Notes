@@ -48,7 +48,7 @@ export async function POST(req: Request) {
   const keys = Object.keys(f);
   const findKey = (re: RegExp, exclude?: RegExp) => keys.find(k => re.test(k) && !(exclude && exclude.test(k)));
   // Fuzzy label matching — the live form says "Your TikTok Handle" etc.
-  const tiktokKey = findKey(/tiktok/) ?? findKey(/^@?handle$/);
+  const tiktokKey = findKey(/tiktok/) ?? findKey(/^@?handle$|social.*handle|primary.*handle/);
   const tiktokHandle = tiktokKey ? f[tiktokKey] : null;
   const igKey = findKey(/instagram|(^|\s)ig\b/);
   const igHandle = igKey ? f[igKey] : null;
@@ -72,7 +72,8 @@ export async function POST(req: Request) {
         province: f[findKey(/state|province|region/) ?? ""] ?? null,
         zip: f[findKey(/zip|postal/) ?? ""] ?? null,
         country: f[findKey(/country/) ?? ""] ?? "US",
-        choices: f[findKey(/would you want|want to/) ?? ""] ?? null,
+        choices: f[findKey(/would you want|want to|interested/) ?? ""] ?? null,
+        scentPreference: f[findKey(/scent/) ?? ""] ?? null,
       },
     });
     return NextResponse.json({ ok: true, flow: "pulse" });

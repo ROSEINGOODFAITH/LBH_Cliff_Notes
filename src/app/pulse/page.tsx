@@ -344,6 +344,9 @@ export default function PulsePage() {
                 {(next as any)?.rawModash?.formChoices && (
                   <p className="mt-2 text-sm">They asked for: <strong>{(next as any).rawModash.formChoices}</strong></p>
                 )}
+                {(next as any)?.rawModash?.scentPreference && (
+                  <p className="mt-2 text-sm">Scent they want: <strong>{(next as any).rawModash.scentPreference}</strong></p>
+                )}
 
                 {!next.email && (
                   <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
