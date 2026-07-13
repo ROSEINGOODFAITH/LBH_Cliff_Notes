@@ -47,8 +47,11 @@ export async function POST(req: Request) {
   const email = extractEmail(payload);
   const keys = Object.keys(f);
   const findKey = (re: RegExp, exclude?: RegExp) => keys.find(k => re.test(k) && !(exclude && exclude.test(k)));
-  const igHandle = f["instagram handle"] ?? f["instagram"] ?? f["ig handle"];
-  const tiktokHandle = f["tiktok handle"] ?? f["tiktok"] ?? f["handle"];
+  // Fuzzy label matching — the live form says "Your TikTok Handle" etc.
+  const tiktokKey = findKey(/tiktok/) ?? findKey(/^@?handle$/);
+  const tiktokHandle = tiktokKey ? f[tiktokKey] : null;
+  const igKey = findKey(/instagram|(^|\s)ig\b/);
+  const igHandle = igKey ? f[igKey] : null;
   // Fuzzy address detection — form labels vary ("Address", "Street address",
   // "Mailing address"…); never mistake "Email address" or a handle for it.
   const addressKey = findKey(/address|street/, /e-?mail|instagram|tiktok|handle/);
