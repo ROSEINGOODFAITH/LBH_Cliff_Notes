@@ -57,9 +57,13 @@ export async function POST(req: Request) {
   const addressKey = findKey(/address|street/, /e-?mail|instagram|tiktok|handle/);
   const address1 = addressKey ? f[addressKey] : null;
 
-  // ---- PULSE intake: anything with a shipping address OR a TikTok handle ----
-  // (unknown submitters become a "Your call" decision, never raw "Found")
-  if (address1 || tiktokHandle) {
+  const choicesVal = f[findKey(/would you want|want to|interested/) ?? ""] ?? null;
+
+  // ---- PULSE intake: anything with an address, a handle, OR an "Interested?"
+  // answer (email-only "future launch" / "remove me" submissions included) ----
+  // (unknown submitters become a "Your call" decision or an opt-out record,
+  // never raw "Found")
+  if (address1 || tiktokHandle || choicesVal) {
     await inngest.send({
       name: "tally/intake.submitted",
       data: {
@@ -72,7 +76,7 @@ export async function POST(req: Request) {
         province: f[findKey(/state|province|region/) ?? ""] ?? null,
         zip: f[findKey(/zip|postal/) ?? ""] ?? null,
         country: f[findKey(/country/) ?? ""] ?? "US",
-        choices: f[findKey(/would you want|want to|interested/) ?? ""] ?? null,
+        choices: choicesVal,
         scentPreference: f[findKey(/scent/) ?? ""] ?? null,
       },
     });
