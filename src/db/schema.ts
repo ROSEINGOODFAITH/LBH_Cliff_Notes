@@ -111,6 +111,12 @@ export const creators = pgTable(
     pulseFit: jsonb("pulse_fit"), // { score, components, spamRisk, tags, rationale, missing }
     /** PULSE operational ring: signal | editorial | advocate (see lib/pulse-rings.ts). */
     ring: text("ring"),
+    /**
+     * Relationship strength: COLD | WARM | FAM (see lib/relationship.ts). Nullable
+     * so existing rows default to unknown (least-risky backfill — never rewrites
+     * stage). Orthogonal to both `stage` and `ring`.
+     */
+    relationshipTier: text("relationship_tier"),
     stage: creatorStageEnum("stage").notNull().default("sourced"),
     tier: text("tier"), // A | B
     discountCode: text("discount_code"),
@@ -135,9 +141,83 @@ export const creators = pgTable(
     stageIdx: index("creators_stage_idx").on(t.stage),
     fitIdx: index("creators_fit_idx").on(t.fitScore),
     ringIdx: index("creators_ring_idx").on(t.ring),
+    relationshipTierIdx: index("creators_relationship_tier_idx").on(t.relationshipTier),
     discountCodeUnique: uniqueIndex("creators_discount_code_unique").on(t.discountCode),
   }),
 );
+
+/* ===========================================================================
+ * flow_steps — persisted PULSE action-flow configuration (single active flow).
+ * Orchestrates the actions AROUND the canonical lifecycle; it never owns the
+ * stage. One row per step; `position` gives execution order and `next_step_key`
+ * threads the sequence. See lib/pulse-flow.ts for validation/semantics.
+ * ========================================================================= */
+export const flowSteps = pgTable(
+  "flow_steps",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    key: text("key").notNull(),
+    name: text("name").notNull(),
+    actionType: text("action_type").notNull(),
+    /** Canonical stage this action orbits (nullable = internal/no stage). */
+    stage: text("stage"),
+    /** Applicable relationship tiers (COLD/WARM/FAM). */
+    tiers: text("tiers").array().notNull(),
+    templateKey: text("template_key"),
+    delayMinutes: integer("delay_minutes"),
+    approvalRequired: boolean("approval_required").notNull().default(true),
+    autoSendsExternal: boolean("auto_sends_external").notNull().default(false),
+    enabled: boolean("enabled").notNull().default(true),
+    nextStepKey: text("next_step_key"),
+    position: integer("position").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => ({
+    keyUnique: uniqueIndex("flow_steps_key_unique").on(t.key),
+    positionIdx: index("flow_steps_position_idx").on(t.position),
+  }),
+);
+
+/* ===========================================================================
+ * flow_runs — per-creator progress through a flow step. `unique(creator, step)`
+ * is the idempotency key: a scheduled/completed run is never duplicated. Status
+ * tracks the operator-facing lifecycle of one action (waiting/approval/etc.).
+ * ========================================================================= */
+export const flowRuns = pgTable(
+  "flow_runs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    creatorId: uuid("creator_id")
+      .notNull()
+      .references(() => creators.id, { onDelete: "cascade" }),
+    stepKey: text("step_key").notNull(),
+    status: text("status").notNull().default("pending"),
+    threadId: uuid("thread_id").references(() => outreachThreads.id, { onDelete: "set null" }),
+    scheduledFor: timestamp("scheduled_for", { withTimezone: true }),
+    lastRunAt: timestamp("last_run_at", { withTimezone: true }),
+    attempts: integer("attempts").notNull().default(0),
+    lastError: text("last_error"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => ({
+    creatorStepUnique: uniqueIndex("flow_runs_creator_step_unique").on(t.creatorId, t.stepKey),
+    creatorIdx: index("flow_runs_creator_idx").on(t.creatorId),
+    statusIdx: index("flow_runs_status_idx").on(t.status),
+  }),
+);
+
+export const flowRunsRelations = relations(flowRuns, ({ one }) => ({
+  creator: one(creators, { fields: [flowRuns.creatorId], references: [creators.id] }),
+  thread: one(outreachThreads, { fields: [flowRuns.threadId], references: [outreachThreads.id] }),
+}));
 
 /* ===========================================================================
  * creator_socials — per-platform handles for a creator

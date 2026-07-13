@@ -2,6 +2,7 @@ import { Inngest } from "inngest";
 import { syncReplies } from "@/lib/outreach";
 import { syncAttributedOrders } from "@/lib/affiliates";
 import { syncBrandMentions } from "@/lib/content";
+import { executeRun, sweepDueRuns } from "@/lib/pulse-flow-runner";
 
 /**
  * Inngest client + scheduled jobs. Keys (INNGEST_EVENT_KEY / INNGEST_SIGNING_KEY)
@@ -28,4 +29,29 @@ export const syncContentMentions = inngest.createFunction(
   async ({ step }) => step.run("sync-mentions", async () => syncBrandMentions()),
 );
 
-export const functions = [syncGmailReplies, syncShopifyOrders, syncContentMentions];
+/**
+ * Sweep due PULSE flow runs. Only runs already in `scheduled` (i.e. approved by
+ * an operator) with a due `scheduledFor` are executed; the runner is idempotent
+ * and applies the Gmail-identity gate before any external send.
+ */
+export const sweepFlowRuns = inngest.createFunction(
+  { id: "sweep-flow-runs" },
+  { cron: "*/5 * * * *" }, // every 5 minutes
+  async ({ step }) => step.run("sweep-due-runs", async () => sweepDueRuns()),
+);
+
+/** Execute a single scheduled run immediately when the app enqueues it. */
+export const runFlowStep = inngest.createFunction(
+  { id: "run-flow-step" },
+  { event: "pulse/flow.run.scheduled" },
+  async ({ event, step }) =>
+    step.run("execute-run", async () => executeRun(event.data.runId as string)),
+);
+
+export const functions = [
+  syncGmailReplies,
+  syncShopifyOrders,
+  syncContentMentions,
+  sweepFlowRuns,
+  runFlowStep,
+];

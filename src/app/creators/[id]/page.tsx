@@ -7,6 +7,8 @@ import { AppNav } from "@/components/app-nav";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { StageBadge } from "@/components/stage-badge";
+import { RelationshipBadge } from "@/components/relationship-badge";
+import { RelationshipEditor } from "./relationship-editor";
 import { ActivityTimeline } from "@/components/activity-timeline";
 import { getCreator } from "@/lib/creators";
 import { getCreatorActivity } from "@/lib/activity";
@@ -63,12 +65,16 @@ export default async function CreatorProfilePage({
             <div className="flex flex-wrap items-center gap-3">
               <h1 className="text-2xl font-semibold tracking-[-0.02em]">@{creator.handle}</h1>
               <StageBadge stage={creator.stage} />
+              <RelationshipBadge tier={creator.relationshipTier} />
               {creator.tier && <Badge variant="outline">Tier {creator.tier}</Badge>}
               {creator.primaryPlatform && <Badge variant="secondary">{creator.primaryPlatform}</Badge>}
             </div>
             {creator.displayName && (
               <div className="mt-1 text-sm text-muted-foreground">{creator.displayName}</div>
             )}
+            <div className="mt-3">
+              <RelationshipEditor creatorId={creator.id} initialTier={creator.relationshipTier} />
+            </div>
           </div>
         </div>
 
