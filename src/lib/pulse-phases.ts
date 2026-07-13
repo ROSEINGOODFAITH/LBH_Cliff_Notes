@@ -249,7 +249,7 @@ export function computeCockpit(input: CockpitInputs): Cockpit {
   if (awaitingConsent > 0)
     candidates.push({ label: `Follow up with ${awaitingConsent} who replied`, detail: "They said yes — nudge for the address form so gifting can start.", href: "/inbox", phase: "gift", priority: 70 });
   if (discovered === 0)
-    candidates.push({ label: "Add your first creators", detail: "Import a Modash CSV or paste handles to start the pipeline.", href: "/pulse", phase: "discover", priority: 60 });
+    candidates.push({ label: "Add your first creators", detail: "Import a CSV or paste handles to start the pipeline.", href: "/pulse", phase: "discover", priority: 60 });
   else if (at("sourced") > 0)
     candidates.push({ label: "Let enrichment finish sourcing", detail: `${at("sourced")} candidates are being enriched and ranked.`, href: "/pulse", phase: "discover", priority: 30 });
 

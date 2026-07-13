@@ -8,9 +8,8 @@ import { Input, fieldClass } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { listCreators, type CreatorFilters, type Platform } from "@/lib/creators";
 import { CREATOR_STAGES, stageMeta, type CreatorStage } from "@/lib/lifecycle";
-import { modashConfigured } from "@/lib/modash";
 import { formatCompact } from "@/lib/utils";
-import { AddCreatorForm, CsvImportForm, ShopifySeedForm, EnrichButton } from "./creator-forms";
+import { AddCreatorForm, CsvImportForm, ShopifySeedForm } from "./creator-forms";
 
 export const dynamic = "force-dynamic";
 
@@ -46,18 +45,11 @@ export default async function CreatorsPage({
   };
 
   const rows = await listCreators(filters);
-  const modashOn = modashConfigured();
 
   return (
     <div className="min-h-screen">
       <AppNav active="/creators" email={team.email} />
       <main className="container space-y-6 py-8">
-        {!modashOn && (
-          <div className="rounded-md border border-border bg-secondary/40 px-4 py-2 text-xs text-muted-foreground">
-            Modash isn&apos;t configured — enrichment is disabled. Add <code>MODASH_API_KEY</code> to enable.
-          </div>
-        )}
-
         <div className="grid gap-4 lg:grid-cols-3">
           <Card className="lg:col-span-2">
             <CardHeader>
@@ -131,13 +123,12 @@ export default async function CreatorsPage({
                     <th className="p-3 font-medium">Stage</th>
                     <th className="p-3 font-medium">Source</th>
                     <th className="p-3 font-medium">Niches</th>
-                    <th className="p-3 font-medium"></th>
                   </tr>
                 </thead>
                 <tbody>
                   {rows.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="p-8 text-center text-sm text-muted-foreground">
+                      <td colSpan={7} className="p-8 text-center text-sm text-muted-foreground">
                         No creators match. Add one above, import a CSV, or run Discovery.
                       </td>
                     </tr>
@@ -163,9 +154,6 @@ export default async function CreatorsPage({
                         <td className="p-3 text-xs text-muted-foreground">{c.source}</td>
                         <td className="p-3 text-xs text-muted-foreground">
                           {c.nicheTags?.length ? c.nicheTags.slice(0, 3).join(", ") : "—"}
-                        </td>
-                        <td className="p-3 text-right">
-                          <EnrichButton creatorId={c.id} disabled={!modashOn} />
                         </td>
                       </tr>
                     ))

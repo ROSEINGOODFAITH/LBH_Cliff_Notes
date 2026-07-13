@@ -20,7 +20,11 @@ import { relations } from "drizzle-orm";
  * ========================================================================= */
 export const platformEnum = pgEnum("platform", ["instagram", "tiktok", "youtube"]);
 export const creatorSourceEnum = pgEnum("creator_source", [
+  // "modash" is retained ONLY so historical rows imported before the provider
+  // migration remain readable — Postgres cannot drop an enum value in use. No
+  // code path writes it anymore. New external data uses "csv".
   "modash",
+  "csv",
   "first_party",
   "manual",
   "competitor_mention",
@@ -88,8 +92,10 @@ export const creators = pgTable(
     audienceAge: jsonb("audience_age"), // { "18-24": 0.41, ... }
     avatarUrl: text("avatar_url"),
     source: creatorSourceEnum("source").notNull().default("manual"),
-    modashId: text("modash_id"),
-    modashLastEnrichedAt: timestamp("modash_last_enriched_at", { withTimezone: true }),
+    /** Stable external identifier from the source that first supplied this row
+     * (e.g. a CSV export's account id). Provider-neutral; deduped via unique idx. */
+    externalId: text("external_id"),
+    lastEnrichedAt: timestamp("last_enriched_at", { withTimezone: true }),
     /**
      * DEPRECATED legacy CRM status. `stage` is the sole authoritative lifecycle
      * field (see lib/lifecycle.ts). Retained as a nullable, non-authoritative
@@ -126,7 +132,9 @@ export const creators = pgTable(
     postUrl: text("post_url"),
     postVerifiedAt: timestamp("post_verified_at", { withTimezone: true }),
     disclosureOk: boolean("disclosure_ok"),
-    rawModash: jsonb("raw_modash"),
+    /** Provider-neutral metadata blob: raw enrichment fields, shipping/consent
+     * captured during onboarding, and CSV import profiles (under `import`). */
+    sourceMetadata: jsonb("source_metadata"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
@@ -137,7 +145,7 @@ export const creators = pgTable(
     statusIdx: index("creators_status_idx").on(t.status),
     sourceIdx: index("creators_source_idx").on(t.source),
     handleIdx: index("creators_handle_idx").on(t.handle),
-    modashIdUnique: uniqueIndex("creators_modash_id_unique").on(t.modashId),
+    externalIdUnique: uniqueIndex("creators_external_id_unique").on(t.externalId),
     stageIdx: index("creators_stage_idx").on(t.stage),
     fitIdx: index("creators_fit_idx").on(t.fitScore),
     ringIdx: index("creators_ring_idx").on(t.ring),
@@ -487,8 +495,8 @@ export const eventsRelations = relations(events, ({ one }) => ({
 
 /* ===========================================================================
  * discovery_candidates — competitor-discovery review queue (P1, Module A)
- * Surfaced from Modash collaboration / lookalike lookups; deduped, then either
- * approved into `creators` or dismissed. Never auto-promoted.
+ * Surfaced from an external discovery source; deduped, then either approved into
+ * `creators` or dismissed. Never auto-promoted.
  * ========================================================================= */
 export const discoveryCandidateStatusEnum = pgEnum("discovery_candidate_status", [
   "new",
@@ -501,7 +509,7 @@ export const discoveryCandidates = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     platform: platformEnum("platform").notNull(),
-    modashUserId: text("modash_user_id"),
+    externalUserId: text("external_user_id"),
     handle: text("handle").notNull(),
     displayName: text("display_name"),
     url: text("url"),
@@ -519,7 +527,7 @@ export const discoveryCandidates = pgTable(
   (t) => ({
     platformUserUnique: uniqueIndex("discovery_candidates_platform_user_unique").on(
       t.platform,
-      t.modashUserId,
+      t.externalUserId,
     ),
     statusIdx: index("discovery_candidates_status_idx").on(t.status),
     handleIdx: index("discovery_candidates_handle_idx").on(t.handle),
@@ -622,4 +630,73 @@ export const provisioningClaims = pgTable(
 
 export const provisioningClaimsRelations = relations(provisioningClaims, ({ one }) => ({
   creator: one(creators, { fields: [provisioningClaims.creatorId], references: [creators.id] }),
+}));
+
+/* ===========================================================================
+ * import_batches / import_rows — provider-neutral CSV import audit trail.
+ *
+ * One batch per uploaded file. `file_hash` is UNIQUE so re-uploading the same
+ * file is idempotent (the second attempt collides and is treated as a replay,
+ * not a new import). Per-row outcomes are persisted for the results screen and a
+ * downloadable error/conflict report. Nothing here sends email, moves a stage,
+ * creates a gift, or starts a flow — it only records what the importer did.
+ * ========================================================================= */
+export const importBatches = pgTable(
+  "import_batches",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    filename: text("filename").notNull(),
+    fileHash: text("file_hash").notNull(),
+    operator: text("operator"), // team member email who ran the import
+    source: text("source").notNull().default("csv"),
+    status: text("status").notNull().default("completed"), // completed | failed
+    totalRows: integer("total_rows").notNull().default(0),
+    enrichedCount: integer("enriched_count").notNull().default(0),
+    createdCount: integer("created_count").notNull().default(0),
+    skippedCount: integer("skipped_count").notNull().default(0),
+    conflictCount: integer("conflict_count").notNull().default(0),
+    errorCount: integer("error_count").notNull().default(0),
+    unchangedCount: integer("unchanged_count").notNull().default(0),
+    mapping: jsonb("mapping"), // header -> field mapping used
+    errors: jsonb("errors"), // batch-level parse errors
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+  },
+  (t) => ({
+    fileHashUnique: uniqueIndex("import_batches_file_hash_unique").on(t.fileHash),
+    createdIdx: index("import_batches_created_idx").on(t.createdAt),
+  }),
+);
+
+export const importRows = pgTable(
+  "import_rows",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    batchId: uuid("batch_id")
+      .notNull()
+      .references(() => importBatches.id, { onDelete: "cascade" }),
+    rowIndex: integer("row_index").notNull(),
+    rowHash: text("row_hash").notNull(),
+    outcome: text("outcome").notNull(), // enriched | created | skipped | conflict | error | unchanged
+    matchReason: text("match_reason"),
+    matchConfidence: real("match_confidence"),
+    creatorId: uuid("creator_id").references(() => creators.id, { onDelete: "set null" }),
+    proposedChanges: jsonb("proposed_changes"), // { field: { from, to } }
+    applied: boolean("applied").notNull().default(false),
+    error: text("error"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    batchIdx: index("import_rows_batch_idx").on(t.batchId),
+    batchRowUnique: uniqueIndex("import_rows_batch_row_unique").on(t.batchId, t.rowHash),
+  }),
+);
+
+export const importBatchesRelations = relations(importBatches, ({ many }) => ({
+  rows: many(importRows),
+}));
+
+export const importRowsRelations = relations(importRows, ({ one }) => ({
+  batch: one(importBatches, { fields: [importRows.batchId], references: [importBatches.id] }),
+  creator: one(creators, { fields: [importRows.creatorId], references: [creators.id] }),
 }));

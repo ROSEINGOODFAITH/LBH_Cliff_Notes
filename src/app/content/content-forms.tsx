@@ -11,7 +11,7 @@ export function SyncMentionsButton({ disabled }: { disabled?: boolean }) {
   );
   return (
     <form action={action} className="flex items-center gap-3">
-      <Button type="submit" size="sm" disabled={pending || disabled} title={disabled ? "Add MODASH_API_KEY to enable" : undefined}>
+      <Button type="submit" size="sm" disabled={pending || disabled}>
         {pending ? "Scanning…" : "Sync brand mentions"}
       </Button>
       {state && <span className={state.ok ? "text-xs text-success" : "text-xs text-destructive"}>{state.message}</span>}

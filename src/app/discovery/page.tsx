@@ -4,7 +4,6 @@ import { AppNav } from "@/components/app-nav";
 import { db } from "@/db";
 import { discoveryCandidates } from "@/db/schema";
 import { brandConfig } from "@/lib/brand";
-import { modashConfigured } from "@/lib/modash";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { RunDiscoveryForm, ApproveButton, DismissButton } from "./discovery-forms";
@@ -13,7 +12,6 @@ export const dynamic = "force-dynamic";
 
 export default async function DiscoveryPage() {
   const team = await requireTeamMember();
-  const modashOn = modashConfigured();
   const candidates = await db
     .select()
     .from(discoveryCandidates)
@@ -33,15 +31,10 @@ export default async function DiscoveryPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-xs text-muted-foreground">
-              Pulls influencers who have collaborated with your competitor brands (via Modash
-              collaborations), deduped against your database. Defaults to: {defaults}.
+              Pulls influencers who have collaborated with your competitor brands (via an external
+              discovery source), deduped against your database. Defaults to: {defaults}.
             </p>
-            {!modashOn && (
-              <div className="rounded-md border border-border bg-secondary/40 px-4 py-2 text-xs text-muted-foreground">
-                Modash isn&apos;t configured — discovery is disabled. Add <code>MODASH_API_KEY</code>.
-              </div>
-            )}
-            <RunDiscoveryForm disabled={!modashOn} defaultCompetitors={defaults} />
+            <RunDiscoveryForm defaultCompetitors={defaults} />
           </CardContent>
         </Card>
 

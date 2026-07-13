@@ -1,5 +1,5 @@
 import { AppNav } from "@/components/app-nav";
-import { Search, Mail, ShoppingBag, Sparkles, CheckCircle2, Circle } from "lucide-react";
+import { Mail, ShoppingBag, Sparkles, CheckCircle2, Circle } from "lucide-react";
 import { requireTeamMember } from "@/lib/auth";
 import { integrations } from "@/lib/env";
 import { getFunnelCounts } from "@/lib/analytics";
@@ -13,7 +13,6 @@ function readIntegrations() {
   try {
     return {
       shopify: integrations.shopify(),
-      modash: integrations.modash(),
       anthropic: integrations.anthropic(),
       gmail: integrations.gmail(),
     };
@@ -38,7 +37,6 @@ export default async function DashboardPage() {
 
   const integrationCards = [
     { key: "shopify", name: "Shopify", icon: ShoppingBag, on: ints?.shopify },
-    { key: "modash", name: "Modash", icon: Search, on: ints?.modash },
     { key: "anthropic", name: "Claude", icon: Sparkles, on: ints?.anthropic },
     { key: "gmail", name: "Gmail", icon: Mail, on: ints?.gmail },
   ];

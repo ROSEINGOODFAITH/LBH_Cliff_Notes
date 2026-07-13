@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
   if (!c || c.stage !== "review") return NextResponse.json({ error: "not in review" }, { status: 409 });
   // Approving needs a way to reach them: an email (invite) or an address on
   // file (form-fillers ship directly). Refuse loudly rather than no-op.
-  const hasAddress = Boolean((c.rawModash as any)?.shipping);
+  const hasAddress = Boolean((c.sourceMetadata as any)?.shipping);
   if (action !== "reject" && !c.email && !hasAddress)
     return NextResponse.json({ error: "no email on file — creator can't enter outreach" }, { status: 409 });
 

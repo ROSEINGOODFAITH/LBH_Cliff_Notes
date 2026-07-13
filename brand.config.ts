@@ -21,8 +21,8 @@ export const brandConfig = {
     process.env.SHOPIFY_STORE_DOMAIN ?? "laurel-bath-house.myshopify.com",
 
   /**
-   * Competitor brands mined for creators in Module A (Modash brand-mention /
-   * lookalike lookups). EDIT-ME: replace with your real competitive set.
+   * Competitor brands of interest for discovery/research. EDIT-ME: replace with
+   * your real competitive set.
    */
   competitorBrands: [
     "Vacation",

@@ -1,23 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
 import { db } from "@/db";
-import { creators, events } from "@/db/schema";
+import { events } from "@/db/schema";
 import { requireTeamMember } from "@/lib/auth";
 import {
   insertCreatorIfNew,
-  getCreator,
-  canReEnrich,
   type Platform,
 } from "@/lib/creators";
-import {
-  getProfileReport,
-  extractEnrichment,
-  modashConfigured,
-  ModashNotConfiguredError,
-  type ModashPlatform,
-} from "@/lib/modash";
 import { parseCsv } from "@/lib/csv";
 import { shopifyRest } from "@/lib/shopify";
 
@@ -101,47 +91,6 @@ export async function importCreatorsCsv(_prev: ActionResult | null, fd: FormData
   }
   revalidatePath("/creators");
   return { ok: true, message: `Imported ${created} creator(s); ${skipped} skipped/duplicate.`, created, skipped };
-}
-
-export async function enrichCreator(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
-  await requireTeamMember();
-  const id = str(fd, "creatorId");
-  if (!id) return { ok: false, message: "Missing creator." };
-  const force = str(fd, "force") === "1";
-  const creator = await getCreator(id);
-  if (!creator) return { ok: false, message: "Creator not found." };
-  if (!modashConfigured())
-    return { ok: false, message: "Modash isn't configured yet — add MODASH_API_KEY to enrich." };
-  if (!canReEnrich(creator, force))
-    return { ok: false, message: "Enriched within the last 30 days. Re-enrich with force to override." };
-
-  const platform = (creator.primaryPlatform ?? "instagram") as ModashPlatform;
-  const lookupId = creator.modashId ?? creator.handle;
-  try {
-    const report = await getProfileReport(platform, lookupId);
-    const e = extractEnrichment(report as Record<string, unknown>);
-    await db
-      .update(creators)
-      .set({
-        displayName: e.displayName ?? creator.displayName,
-        email: e.email ?? creator.email,
-        followerCount: e.followerCount ?? creator.followerCount,
-        engagementRate: e.engagementRate ?? creator.engagementRate,
-        avatarUrl: e.avatarUrl ?? creator.avatarUrl,
-        nicheTags: e.nicheTags ?? creator.nicheTags,
-        audienceGeo: e.audienceGeo ?? creator.audienceGeo,
-        audienceAge: e.audienceAge ?? creator.audienceAge,
-        modashId: e.modashId ?? creator.modashId,
-        modashLastEnrichedAt: new Date(),
-      })
-      .where(eq(creators.id, id));
-    await db.insert(events).values({ creatorId: id, type: "creator.enriched", payload: { platform } });
-    revalidatePath("/creators");
-    return { ok: true, message: `Enriched @${creator.handle}.` };
-  } catch (err) {
-    if (err instanceof ModashNotConfiguredError) return { ok: false, message: err.message };
-    return { ok: false, message: err instanceof Error ? err.message : "Enrichment failed." };
-  }
 }
 
 export async function seedFromShopify(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {

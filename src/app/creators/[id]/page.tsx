@@ -46,7 +46,7 @@ export default async function CreatorProfilePage({
     getCreatorActivity(id),
   ]);
 
-  const shipping = (creator.rawModash as { shipping?: Record<string, string> } | null)?.shipping ?? null;
+  const shipping = (creator.sourceMetadata as { shipping?: Record<string, string> } | null)?.shipping ?? null;
 
   return (
     <div className="min-h-screen">

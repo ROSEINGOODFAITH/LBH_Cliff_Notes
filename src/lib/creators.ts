@@ -51,15 +51,15 @@ export async function getCreator(id: string): Promise<CreatorRow | null> {
   return rows[0] ?? null;
 }
 
-/** Case-insensitive dedup by modashId, else by (handle, platform). */
+/** Case-insensitive dedup by externalId, else by (handle, platform). */
 export async function findExistingCreator(opts: {
   platform?: Platform | null;
   handle: string;
-  modashId?: string | null;
+  externalId?: string | null;
 }): Promise<CreatorRow | null> {
-  if (opts.modashId) {
-    const byModash = await db.select().from(creators).where(eq(creators.modashId, opts.modashId)).limit(1);
-    if (byModash[0]) return byModash[0];
+  if (opts.externalId) {
+    const byExternal = await db.select().from(creators).where(eq(creators.externalId, opts.externalId)).limit(1);
+    if (byExternal[0]) return byExternal[0];
   }
   const conds = [sql`lower(${creators.handle}) = lower(${opts.handle})`];
   if (opts.platform) conds.push(eq(creators.primaryPlatform, opts.platform));
@@ -78,7 +78,7 @@ export async function insertCreatorIfNew(
   const existing = await findExistingCreator({
     platform: values.primaryPlatform ?? null,
     handle: values.handle,
-    modashId: values.modashId ?? null,
+    externalId: values.externalId ?? null,
   });
   if (existing) return { creator: existing, created: false };
   const [row] = await db.insert(creators).values(values).returning();
@@ -88,9 +88,9 @@ export async function insertCreatorIfNew(
 export const ENGAGEMENT_REENRICH_DAYS = 30;
 
 /** True if the creator may be re-enriched (never enriched, or older than 30 days). */
-export function canReEnrich(c: Pick<CreatorRow, "modashLastEnrichedAt">, force = false): boolean {
+export function canReEnrich(c: Pick<CreatorRow, "lastEnrichedAt">, force = false): boolean {
   if (force) return true;
-  if (!c.modashLastEnrichedAt) return true;
-  const ageMs = Date.now() - new Date(c.modashLastEnrichedAt).getTime();
+  if (!c.lastEnrichedAt) return true;
+  const ageMs = Date.now() - new Date(c.lastEnrichedAt).getTime();
   return ageMs > ENGAGEMENT_REENRICH_DAYS * 24 * 60 * 60 * 1000;
 }

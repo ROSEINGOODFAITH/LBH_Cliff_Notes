@@ -103,7 +103,7 @@ export default function PulsePage() {
     }
   };
 
-  /* ---------- import parsing (handles list, Modash CSV, or name+email lines) ---------- */
+  /* ---------- import parsing (handles list, CSV, or name+email lines) ---------- */
   const parseImport = (text: string): any[] => {
     const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
     if (!lines.length) return [];
@@ -133,7 +133,7 @@ export default function PulsePage() {
       let er = toNum(erRaw);
       if (er != null && ((erRaw ?? "").includes("%") || er > 1)) er = er / 100;
       const cred = iCred >= 0 ? toNum(c[iCred]) : null;
-      // Modash cells can hold several emails — capture all of them.
+      // Enrichment cells can hold several emails — capture all of them.
       const allEmails = (iM >= 0 ? (c[iM] ?? "") : line).match(/[^\s@,;"<>]+@[^\s@,;"<>]+\.[^\s@,;"<>]+/g) ?? [];
       return {
         handle: iH >= 0 ? c[iH] : c[0],
@@ -213,7 +213,7 @@ export default function PulsePage() {
         ].filter(Boolean).join(" and ") + ". Everything else is moving."
       : `Nothing needs you. ${inMotion} in motion, ${postedTotal} posted.`;
 
-  const hasAddress = Boolean((next as any)?.rawModash?.shipping);
+  const hasAddress = Boolean((next as any)?.sourceMetadata?.shipping);
   const canDecide = Boolean(next?.email || hasAddress);
   const cardStats = next ? [
     ["Followers", next.followerCount != null ? Number(next.followerCount).toLocaleString() : null],
@@ -251,12 +251,6 @@ export default function PulsePage() {
             </div>
           )}
         </div>
-
-        {dash?.health?.modashPaused && (
-          <div className="rounded-cell border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning">
-            Profile data is paused — Modash hasn&apos;t switched on our access to their data yet, so new creators arrive without stats. CSV imports still bring full data.
-          </div>
-        )}
 
         {flash && (
           <div
@@ -341,8 +335,8 @@ export default function PulsePage() {
                 {hasAddress && (
                   <p className="mt-3 text-sm font-medium text-success">Filled your address form ✓ — approving ships to them right away.</p>
                 )}
-                {(next as any)?.rawModash?.formChoices && (
-                  <p className="mt-2 text-sm">They asked for: <strong>{(next as any).rawModash.formChoices}</strong></p>
+                {(next as any)?.sourceMetadata?.formChoices && (
+                  <p className="mt-2 text-sm">They asked for: <strong>{(next as any).sourceMetadata.formChoices}</strong></p>
                 )}
 
                 {!next.email && (
@@ -489,7 +483,7 @@ export default function PulsePage() {
                   rows={5}
                   placeholder={importMode === "contacts"
                     ? "Jane Doe, jane@example.com — one person per line"
-                    : "@handles, profile links, or your Modash CSV export — one per line"}
+                    : "@handles, profile links, or your CSV export — one per line"}
                   className={cn(fieldClass, "h-auto min-h-[120px] w-full py-2 font-mono")}
                   data-testid="pulse-import-text"
                 />

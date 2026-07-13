@@ -38,7 +38,6 @@ export function RunDiscoveryForm({
           type="submit"
           size="sm"
           disabled={pending || disabled}
-          title={disabled ? "Add MODASH_API_KEY to enable" : undefined}
         >
           {pending ? "Scanning…" : "Run discovery"}
         </Button>

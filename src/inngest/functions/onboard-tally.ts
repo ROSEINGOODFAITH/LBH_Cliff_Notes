@@ -55,14 +55,14 @@ export const onboardTally = inngest.createFunction(
           source: "first_party",
           primaryPlatform: "tiktok",
           stage: "churned",
-          rawModash: { addressForm: true, optOut: true, formChoices: choiceStr, submittedAt },
+          sourceMetadata: { addressForm: true, optOut: true, formChoices: choiceStr, submittedAt },
         }));
         return;
       }
       const finished = ["posted", "paid"].includes(c.stage); // completed collabs keep their stage
       await step.run("opt-out", () => db.update(creators).set({
         ...(finished ? {} : { stage: "churned" }),
-        rawModash: { ...(c.rawModash as any), optOut: true, formChoices: choiceStr, submittedAt },
+        sourceMetadata: { ...(c.sourceMetadata as any), optOut: true, formChoices: choiceStr, submittedAt },
         updatedAt: new Date(),
       }).where(eq(creators.id, c.id)));
       return;
@@ -79,7 +79,7 @@ export const onboardTally = inngest.createFunction(
         source: "first_party",
         primaryPlatform: "tiktok",
         stage: "review",
-        rawModash: { addressForm: true, ...(shipping ? { shipping } : {}), ...(choiceStr ? { formChoices: choiceStr } : {}), submittedAt },
+        sourceMetadata: { addressForm: true, ...(shipping ? { shipping } : {}), ...(choiceStr ? { formChoices: choiceStr } : {}), submittedAt },
       }));
       return;
     }
@@ -108,7 +108,7 @@ export const onboardTally = inngest.createFunction(
         await step.run("save", () => db.update(creators).set({
           shopifyDraftOrderId: draftOrderId, stage: "onboarded",
           ...(igNorm ? { igHandle: igNorm } : {}),
-          rawModash: { ...(c.rawModash as any), addressForm: true, shipping, ...(choiceStr ? { formChoices: choiceStr } : {}), submittedAt },
+          sourceMetadata: { ...(c.sourceMetadata as any), addressForm: true, shipping, ...(choiceStr ? { formChoices: choiceStr } : {}), submittedAt },
           updatedAt: new Date(),
         }).where(eq(creators.id, c.id)));
         await step.run("complete-claim", () => completeGift(claim.id, { draftOrderId }));
@@ -126,7 +126,7 @@ export const onboardTally = inngest.createFunction(
       ...(igNorm ? { igHandle: igNorm } : {}),
       ...(cleanEmail && !c.email ? { email: cleanEmail } : {}),
       ...(name && !c.displayName ? { displayName: name } : {}),
-      rawModash: { ...(c.rawModash as any), addressForm: true, ...(shipping ? { shipping } : {}), ...(choiceStr ? { formChoices: choiceStr } : {}), submittedAt },
+      sourceMetadata: { ...(c.sourceMetadata as any), addressForm: true, ...(shipping ? { shipping } : {}), ...(choiceStr ? { formChoices: choiceStr } : {}), submittedAt },
       updatedAt: new Date(),
     }).where(eq(creators.id, c.id)));
   });
